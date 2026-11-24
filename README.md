@@ -22,6 +22,12 @@ Les sorts se crient en anglais. La reconnaissance (Moonshine) tourne dans le nav
 
 Vous commencez avec **un sort tiré au hasard** dans votre école. Chaque parchemin ajoute **un autre sort au hasard** parmi ceux qui restent ; le grimoire liste vos sorts dans l'ordre où vous les avez appris (touches 1 à 7 = 1er à 7e sort de la liste). **L'incantation tourne** : chaque sort a un cycle de 4 phrases (ex. Blazing Orb : « Blazing Orb », « Molten Globe », « Ember Sun », « Lava Pearl »). Seule la phrase affichée dans le grimoire lance le sort ; après chaque lancer, le grimoire passe à la suivante : les 4 défilent dans un ordre mélangé, chacune une fois par tour, puis un nouveau tour recommence dans un autre ordre. Chaque phrase a ses 10 premiers essais d'apprentissage, et ce qui est appris reste propre à cette phrase.
 
+## Histoire et campagne
+
+L'Archimage Velkar a brisé le Cristal d'Harmonie. Le Golem (vague 5), la Liche (vague 10) et le Wyrm (vague 15) en gardent chacun un fragment : chaque victoire répare le cristal au centre de l'arène et débloque une page du récit (touche L pour l'écouter). À la vague 20, affrontez **Velkar** : il renvoie les sorts des cinq écoles, et quand il lance un **Mot de pouvoir**, criez la phrase affichée avant la fin de la barre pour l'étourdir. Ensuite, mode infini.
+
+**Survie** : la vie remonte très lentement après 6 s sans dégâts ; criez **« Healing »** (ou H) pour échanger 30 mana contre 22 PV. **G** ouvre le guide du sorcier (tout est expliqué en jeu).
+
 ## Boss (toutes les 5 vagues, seuls avec leurs propres troupes)
 
 - **Golem des Ruines** : lance des rochers sur un joueur au hasard — un cercle rouge marque l'impact, sortez-en ! Sous 50 % de vie, il en lance trois à la fois. Faible à la Glace.

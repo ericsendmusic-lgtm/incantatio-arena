@@ -103,6 +103,24 @@ button{cursor:pointer}
 #pause button{display:block;width:100%;margin:8px 0;padding:9px 16px;font:inherit;font-size:16px;cursor:pointer;color:#f3e6c8;background:linear-gradient(#3a2a1c,#22170f);border:1px solid #b8913f;border-radius:6px}
 #pause button:hover{background:linear-gradient(#5a3e24,#2e1f12)}
 #pause #pstat{max-width:340px;margin:4px auto 10px;font-size:15px;opacity:.9}
+#story{inset:0;display:grid;place-items:center;pointer-events:none;background:radial-gradient(circle,rgba(0,0,0,.25),rgba(0,0,0,.7))}
+#story div{max-width:620px;padding:30px 40px;color:#2a1a0c;background:radial-gradient(circle at 50% 40%,#efe0b8,#d8bf86 70%,#a8854c);border-radius:6px;box-shadow:0 0 0 2px #6a4a20,0 10px 50px #000;font-family:'IM Fell English',serif;text-align:center}
+#story h3{margin:0 0 12px;font-family:'Pirata One',Cinzel,serif;font-size:40px;color:#7a1010;letter-spacing:.03em}
+#story p{font-size:19px;line-height:1.55;margin:0 0 14px;text-align:justify}
+#story small{opacity:.7}
+#guide{inset:0;display:grid;place-items:center;pointer-events:auto;background:rgba(0,0,0,.6);z-index:40}
+#guide>div{width:min(860px,92vw);max-height:86vh;overflow:auto;padding:24px 34px;color:#2a1a0c;background:radial-gradient(circle at 50% 30%,#efe0b8,#d8bf86 75%,#b08f58);border-radius:6px;box-shadow:0 0 0 2px #6a4a20,0 10px 50px #000;font-family:'IM Fell English',serif}
+#guide h3{margin:0 0 6px;text-align:center;font-family:'Pirata One',Cinzel,serif;font-size:40px;color:#7a1010}
+#guide h4{margin:16px 0 4px;font-family:'Pirata One',Cinzel,serif;font-size:24px;color:#5a1a0c;border-bottom:1px solid rgba(90,40,10,.35)}
+#guide p,#guide li{font-size:16px;line-height:1.45;margin:3px 0}
+#guide table{width:100%;border-collapse:collapse;font-size:15px}#guide td,#guide th{padding:3px 6px;border-bottom:1px solid rgba(90,40,10,.2);text-align:left}
+#guide .w{color:#1a6a1a;font-weight:bold}#guide .r{color:#8a1a1a}#guide small{display:block;text-align:center;opacity:.7;margin-top:10px}
+#bklist li.heal{color:#1a7a3a;border-top:1px dashed rgba(90,40,10,.3);margin-top:4px}
+#duel{top:16%;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;padding:12px 26px;background:rgba(20,10,30,.78);border:1px solid #c08aff;border-radius:10px;box-shadow:0 0 30px #7a4aff}
+#duel b{display:block;font-family:Cinzel,serif;font-size:14px;letter-spacing:.12em;color:#d8c0ff}
+#duel span{display:block;font-family:'Pirata One',Cinzel,serif;font-size:46px;color:#fff;text-shadow:0 0 14px #c08aff;margin:4px 0 8px}
+#duel i{display:block;height:6px;background:rgba(255,255,255,.15);border-radius:3px;overflow:hidden}
+#duel u{display:block;height:100%;background:linear-gradient(90deg,#ff4a6a,#c08aff);transform-origin:left}
 #pause div{pointer-events:auto;background:rgba(10,12,24,.82);border:1px solid rgba(234,219,185,.35);border-radius:12px;padding:14px 22px;font-size:17px;text-align:center}
 #score{left:50%;top:22%;transform:translateX(-50%);background:rgba(10,12,24,.88);border:1px solid rgba(234,219,185,.35);border-radius:12px;padding:12px 18px;min-width:300px}
 #score table{border-collapse:collapse;width:100%;font-size:15px}#score td,#score th{padding:4px 8px;text-align:left}#score td:not(:first-child),#score th:not(:first-child){text-align:right}
@@ -205,6 +223,7 @@ button{cursor:pointer}
       <li><kbd>Clic droit</kbd> après un sort raté : le jeu retient ce qu'il a entendu pour le sort ouvert dans le grimoire · les 10 premiers sorts dits servent d'apprentissage</li>
       <li><kbd>Entrée</kbd> écrire une incantation · <kbd>T</kbd> chat de salle</li>
       <li><kbd>Molette</kbd> / <kbd>1–7</kbd> feuilleter le grimoire · après un sort raté, <kbd>1–7</kbd> apprend le mot au jeu</li>
+      <li><kbd>H</kbd> ou criez « Healing » : 30 mana → 22 PV · <kbd>G</kbd> guide du sorcier · <kbd>Échap</kbd> pause</li>
       <li><kbd>Tab</kbd> scores · le créateur partage son code, 3 sorciers max</li>
     </ul>
   </div>
@@ -222,8 +241,11 @@ button{cursor:pointer}
   <div class="hud" id="hurt"></div>
   <div class="hud hidden" id="dead"></div>
   <div class="hud hidden" id="pause"><div><h3>Pause</h3><p id="pstat">La partie est figée.</p>
-    <button id="presume">Reprendre</button><button id="preco" class="hidden">Se reconnecter et reprendre</button><button id="pquit">Quitter la partie</button>
+    <button id="presume">Reprendre</button><button id="preco" class="hidden">Se reconnecter et reprendre</button><button id="pguide">Guide du sorcier</button><button id="pquit">Quitter la partie</button>
     <p id="inv"></p></div></div>
+  <div class="hud hidden" id="story"><div><h3 id="sth"></h3><p id="stx"></p><small>Entrée : continuer · L : écouter le récit</small></div></div>
+  <div class="hud hidden" id="guide"><div><h3>Guide du sorcier</h3><div id="gbody"></div><small>G, Entrée ou Échap : fermer</small></div></div>
+  <div class="hud hidden" id="duel"><b>MOT DE POUVOIR — criez-le avant Velkar !</b><span id="duelp"></span><i><u id="duelb"></u></i></div>
   <div class="hud" id="rc"></div>
   <div class="hud hidden" id="score"></div>
   <div class="hud" id="chat"><div id="chatlog"></div><input id="chatin" class="hidden" maxlength="140" autocomplete="off"></div>
@@ -1827,6 +1849,8 @@ let voicePulse = 0;
 function onSpeech(raw, final, lax){
   const text = Array.isArray(raw) ? raw[0] : raw, all = Array.isArray(raw) ? raw.join(' ') : raw; voicePulse = Math.min(1, voicePulse + .45);
   if (!playing) return;
+  if (duelCheck(all)) return;
+  if (!uttCast && healCheck(all, final)) { uttCast = !final; return; }
   if (chatOpen) { $('#chatin').value = text; if (final) sendChat(); return; }
   pttText = (pttText && !final ? '' : '') + all; pttCast = pttCast || false;
   $('#bksaid').textContent = '« ' + text + ' »'; $('#mict').textContent = 'J\'entends : ' + text.slice(-28);
@@ -2114,6 +2138,7 @@ function renderBook(){
   $('#bkmeta').textContent = has ? `${sp.mana} mana · ${sp.cd}s · ${({bolt:'projectile',nova:'onde autour de vous',rain:'pluie au sol visé',wave:'vague frontale',chain:'arc en chaîne'})[sp.k]}` : '';
   const cat = known.filter(k => k.startsWith(me.cls + ':')), sealed = ids.length - cat.length;
   $('#bklist').innerHTML = cat.map((sid, n) => { const i = +sid.split(':')[1]; return `<li class="${i === page ? 'cur' : ''}" data-i="${i}"><s data-cd="${sid}"></s><span>${n + 1}. ${esc(incOf(sid))}</span><em>${c.spells[i].mana}</em></li>`; }).join('') + (sealed ? `<li class="lock"><span>~ ${sealed} page${sealed > 1 ? 's' : ''} scellée${sealed > 1 ? 's' : ''} ~</span></li>` : '');
+  $('#bklist').insertAdjacentHTML('beforeend', '<li class="heal" title="Échange du mana contre de la vie"><span>✚ Healing (H)</span><em>30</em></li>');
 }
 function bookFlash(){ const b = $('#book'); b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash'); }
 
@@ -2156,7 +2181,7 @@ const CAL_N = 10; let CAL = {}; try { CAL = JSON.parse(localStorage.getItem('inc
 const calLeft = id => Math.max(0, CAL_N - (CAL[lkey(id)] || 0));
 function calUse(id){ id = lkey(id); CAL[id] = (CAL[id] || 0) + 1; try { localStorage.setItem('incantatio-calib2', JSON.stringify(CAL)); } catch (e) {} }
 function fizzle(){ setTimeout(() => { if (lastFail && now() - lastFail.t < 4.5) $('#bkhint').textContent = 'Raté ? Clic droit : le jeu retient ce mot pour le sort ouvert dans le grimoire.'; }, 1200); $('#bkhint').textContent = lastNear && lastNear.s > .4 ? 'Presque ! « ' + spellOf(lastNear.id).n + ' » à ' + Math.round(lastNear.s*100) + ' %, répétez plus distinctement.' : 'Le sort se dissipe… parlez plus clairement.'; }
-function tryCast(id){ if (paused) return;
+function tryCast(id){ if (paused) return; if (paused && !room) return;
   if (pttOn) pttCast = true;
   if (me.dead || !known.includes(id)) return;
   const sp = spellOf(id); if ((cds[id] || 0) > now()) { toast(sp.n + ' : pas encore prêt'); return; }
@@ -2303,7 +2328,7 @@ function heal(n){ me.hp = Math.min(100, me.hp + n); puff(me.x, 1, me.z, '#7dff9c
 let lastHurtBy = null;
 function takeDamage(d, by){
   if (!me.dead && playing) { shake = Math.min(1, shake + d/25); GRADE.uniforms.uHurt.value = Math.min(.8, GRADE.uniforms.uHurt.value + d/30); }
-  if (me.dead || !playing) return; me.hp -= d; if (by) lastHurtBy = by;
+  if (me.dead || !playing) return; me.hp -= d; me.hurtT = T; if (by) lastHurtBy = by;
   $('#hurt').style.opacity = 1; setTimeout(() => $('#hurt').style.opacity = 0, 180);
   if (me.hp <= 0) die();
 }
@@ -2331,7 +2356,7 @@ function startWave(){
   W.w++; W.st = 'fight'; W.q = []; const np = Math.max(1, players().length); /* apparition plus douce : moins de monstres, adaptée au nombre de joueurs */
   const n = Math.round((3 + W.w*2)*(1 + .5*(np - 1)));
   for (let i = 0; i < n; i++) W.q.push(pickType(W.w));
-  if (W.w % 5 === 0) W.q = [3 + ((W.w/5 - 1) % 3)]; /* vague de boss : le boss vient seul avec ses propres troupes */
+  if (W.w % 5 === 0) W.q = [bossFor(W.w)]; /* vague de boss : le boss vient seul avec ses propres troupes */
   W.spT = 0;
 }
 function spawnMon(type){
@@ -2342,7 +2367,7 @@ function spawnMon(type){
   if (MT[type].boss) bossSpawned(m);
 }
 function hostStep(dt){
-  if (W.st === 'over') { W.overT -= dt; if (W.overT <= 0) { for (const m of mons.values()) scene.remove(m.g); mons.clear(); W.w = 0; W.st = 'break'; W.t = 6; } return; }
+  if (W.st === 'over') { W.overT -= dt; if (W.overT <= 0) { for (const m of mons.values()) scene.remove(m.g); mons.clear(); W.w = 0; W.st = 'break'; W.t = 6; W.fragSet = 0; W.won = 0; DUEL = null; W.hits.push(['frag', 0, 0]); setFrag(0); } return; }
   if (W.st === 'break') { W.t -= dt; if (W.t <= 0) startWave(); }
   else { W.spT -= dt; const np = Math.max(1, players().length), cap = Math.min(40, Math.round((4 + W.w)*(1 + .6*(np - 1)))); if (W.q.length && W.spT <= 0 && mons.size < cap) { spawnMon(W.q.shift()); W.spT = Math.max(.9, 1.9 - W.w*.06)/(1 + .4*(np - 1)); } if (!W.q.length && !mons.size) { W.st = 'break'; W.t = 10; } }
   const P = players();
@@ -2638,6 +2663,147 @@ function slamFx(m){ const dd = Math.hypot(m.x - me.x, m.z - me.z); if (dd < 20) 
 function collide(o, r, lim){ for (const b of OBS) { const dx = o.x-b.x, dz = o.z-b.z, d = Math.hypot(dx, dz), rr = r + b.r; if (d < rr && d > 0) { o.x = b.x + dx/d*rr; o.z = b.z + dz/d*rr; } } const d = Math.hypot(o.x, o.z); if (d > lim) { o.x *= lim/d; o.z *= lim/d; } }
 function takeDrop(id, peer){ const d = drops.get(id); if (!d) return; scene.remove(d.g); drops.delete(id); if (peer === me.peer || !room) grant(d.t); else room.emit('taken', {id, to:peer, t:d.t}).catch(()=>{}); }
 
+/* ===================== HISTOIRE, FRAGMENTS DU CRISTAL, CAMPAGNE, ARCHIMAGE ===================== */
+const STORY = [
+  {t:'Prologue', x:"Jadis, l'École d'Incantatio enseignait la langue des sorts : chaque mot, prononcé juste, éveillait la magie. L'Archimage Velkar voulut tous les dire à la fois. Ses paroles brisèrent le Cristal d'Harmonie au cœur de l'arène ; trois fragments s'enfuirent dans trois gardiens, et les créatures de la nuit accoururent. Tiens l'arène, vague après vague. Reprends les fragments. Puis fais taire Velkar."},
+  {t:'Premier fragment', x:"Le Golem des Ruines s'effondre. Dans son cœur de magma palpite un premier fragment. Les pierres de l'école s'en souviennent : on taille la roche avec patience, on taille la langue avec précision. Le cristal retrouve une lueur."},
+  {t:'Deuxième fragment', x:"La Liche Écarlate gardait jadis la bibliothèque. Elle voulait garder les mots pour elle seule, au point de refuser la mort. Son fragment est froid comme un secret. Le cristal brille plus fort ; quelque part, Velkar l'a senti."},
+  {t:'Troisième fragment', x:"Trois têtes, trois souffles, trois mots qui ne s'accordaient jamais. Le Wyrm tombe et son fragment rejoint les autres. Le Cristal d'Harmonie est presque entier. Le ciel se déchire : l'Archimage Velkar descend dans l'arène."},
+  {t:"L'Archimage Velkar", x:"Velkar parle toutes les langues mais n'en écoute aucune. Ses sorts seront les tiens, retournés contre toi. Quand il prononce un Mot de pouvoir, crie-le avant lui : seule une voix juste peut briser une voix fausse."},
+  {t:'Épilogue', x:"Le dernier mot de Velkar se brise dans ta voix. Le Cristal d'Harmonie se reforme et l'arène retrouve son silence. L'École d'Incantatio rouvrira ses portes ; on y apprendra, comme toi, à dire juste. Mais au-delà des murs, la nuit rôde encore… L'arène continue : jusqu'où tiendras-tu ?"}
+];
+let storyOpen = false, storyFreeze = false, guideOpen = false;
+const ELN = {fire:'Feu', ice:'Glace', storm:'Foudre', spirit:'Esprit', shadow:'Ombre'};
+function guideHTML(){
+  const nb = FRAG_N >= 4 ? 'Velkar est vaincu : mode infini.' : 'Fragments récupérés : <b>' + Math.min(3, FRAG_N) + '/3</b>. Prochain boss : vague <b>' + Math.max(5, Math.ceil((W.w + 1)/5)*5) + '</b>' + (W.w < 20 ? ' · boss final à la vague 20.' : '.');
+  const rows = [0, 7, 1, 6, 8, 10, 2, 3, 4, 5, 11, 12, 13, 14, 15].filter(i => MT[i]).map(i => { const w = WEAK[i] || {}, f = Object.entries(w).filter(([, v]) => v > 1).map(([k, v]) => ELN[k] + ' ×' + String(v).replace('.', ',')), r = Object.entries(w).filter(([, v]) => v < 1).map(([k, v]) => ELN[k] + ' ×' + String(v).replace('.', ','));
+    return '<tr><td>' + esc(MT[i].n) + '</td><td class="w">' + (f.join(', ') || '—') + '</td><td class="r">' + (r.join(', ') || '—') + '</td></tr>'; }).join('');
+  return `<h4>Votre quête</h4><p>L'Archimage Velkar a brisé le Cristal d'Harmonie. Trois gardiens en détiennent les fragments : le Golem (vague 5), la Liche (vague 10) et le Wyrm (vague 15). À la vague 20, affrontez Velkar lui-même. ${nb}</p>
+  <h4>Lancer des sorts</h4><ul><li>Criez la phrase affichée en grand dans le grimoire. Chaque sort a un <b>cycle de 4 phrases</b> : après chaque lancer, le grimoire passe à la suivante (ordre mélangé).</li>
+  <li>Les <b>10 premiers essais de chaque phrase</b> servent d'apprentissage : le sort part même si le micro comprend mal, et le jeu retient votre prononciation.</li>
+  <li>Après un raté, <b>clic droit</b> enregistre ce que le micro a entendu pour le sort ouvert. Touches <b>1 à 7</b> ou <b>molette</b> : changer de sort. Clic gauche : trait de base.</li>
+  <li>Vous commencez avec un sort au hasard ; chaque <b>parchemin</b> en ajoute un autre au hasard.</li></ul>
+  <h4>Survie</h4><ul><li><b>Healing</b> : criez « Healing » (ou touche H) — 30 mana → 22 PV, 8 s de recharge.</li><li>La vie remonte <b>très lentement</b> toute seule après 6 s sans dégâts. Le mana remonte lentement.</li>
+  <li>Butin : croix d'émeraude +45 PV · cristaux de saphir +60 mana · parchemin = nouveau sort · rune de feu = dégâts ×1,5 pendant 25 s.</li><li>Les attaques de boss sont <b>annoncées au sol</b> (cercles et cônes rouges ou verts) : sortez-en !</li></ul>
+  <h4>Boss</h4><ul><li><b>Golem des Ruines</b> — lance des rochers sur un joueur au hasard (cercle rouge), trois à la fois sous 50 % de vie. Onde de choc au corps à corps.</li>
+  <li><b>Liche Écarlate</b> — garde 4 serviteurs et ressuscite ceux qu'on abat (rayon vert). Tant que 3 vivent, son bouclier d'âmes réduit ses dégâts de 75 %. Orbes d'âme (cercle vert).</li>
+  <li><b>Wyrm aux trois têtes</b> — corps invulnérable. Chaque tête souffle en cône. Tranchez les trois en moins de 25 s après la première, sinon elles repoussent.</li>
+  <li><b>Archimage Velkar</b> — vous renvoie les sorts des cinq écoles, nova violette autour de lui, se dédouble sous 50 %. <b>Mot de pouvoir</b> : une phrase s'affiche, criez-la avant la fin de la barre pour l'étourdir (dégâts ×2), sinon tout le monde encaisse.</li></ul>
+  <h4>Faiblesses et résistances</h4><table><tr><th>Monstre</th><th>Faible contre</th><th>Résiste à</th></tr>${rows}</table><p>Gros chiffre jaune « ! » = faiblesse · petit chiffre gris = résistance.</p>
+  <h4>Touches</h4><p>Z Q S D / W A S D se déplacer · Espace sauter · V micro · M musique · Entrée écrire une incantation · T discuter · Tab scores · H Healing · G guide · Échap pause.</p>`; }
+function openGuide(){ guideOpen = true; storyFreeze = !room; $('#gbody').innerHTML = guideHTML(); $('#guide').classList.remove('hidden'); }
+function closeGuide(){ guideOpen = false; storyFreeze = storyOpen && !room; $('#guide').classList.add('hidden'); }
+addEventListener('keydown', e => { if (!guideOpen) return; if (['KeyG', 'Enter', 'Escape', 'Space'].includes(e.code)) { e.preventDefault(); e.stopImmediatePropagation(); closeGuide(); } }, true);
+function showStory(i){ const s = STORY[i]; if (!s) return; storyOpen = true; storyFreeze = !room; $('#sth').textContent = s.t; $('#stx').textContent = s.x; $('#story').classList.remove('hidden'); }
+function closeStory(){ storyOpen = false; storyFreeze = false; $('#story').classList.add('hidden'); try { speechSynthesis.cancel(); } catch (e) {} }
+function readStory(){ try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance($('#stx').textContent); u.lang = 'fr-FR'; const v = speechSynthesis.getVoices().find(v => /^fr/i.test(v.lang)); if (v) u.voice = v; u.rate = .95; u.pitch = .9; speechSynthesis.speak(u); } catch (e) {} }
+addEventListener('keydown', e => { if (!storyOpen) return; if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeStory(); } else if (e.code === 'KeyL') { e.preventDefault(); e.stopImmediatePropagation(); readStory(); } }, true);
+
+/* --- fragments du cristal : le cœur de l'arène se reforme --- */
+let FRAG_N = 0; const FRAG_SH = [];
+{ const cols = [0xff7a2a, 0x5aff9c, 0xb07dff]; for (let i = 0; i < 3; i++) { const s = new THREE.Mesh(new THREE.OctahedronGeometry(.36, 0).scale(.7, 1.6, .7), new THREE.MeshStandardMaterial({color:0xffffff, emissive:cols[i], emissiveIntensity:2.2, roughness:.08, metalness:.2, transparent:true, opacity:.92})); s.visible = false; scene.add(s); const gl = new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex, color:cols[i], blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.8, fog:false})); gl.scale.setScalar(2.2); s.add(gl); FRAG_SH.push(s); } }
+const FRAG_BEAM = new THREE.Mesh(new THREE.CylinderGeometry(.6, .9, 60, 24, 1, true).translate(0, 30, 0), beamMat(0x9fd8ff)); FRAG_BEAM.position.set(0, 4.6, 0); FRAG_BEAM.visible = false; scene.add(FRAG_BEAM);
+function setFrag(n){ FRAG_N = clamp(n, 0, 4); FRAG_SH.forEach((s, i) => s.visible = FRAG_N > i); FRAG_BEAM.visible = FRAG_N >= 4;
+  crystal.material.emissiveIntensity = .6 + FRAG_N*.45; crystal.scale.setScalar(.75 + FRAG_N*.09); }
+function fragTick(dt){ FRAG_SH.forEach((s, i) => { const a = T*.7 + i*2.094; s.position.set(Math.cos(a)*2.1, 4.6 + Math.sin(T*1.3 + i)*.3, Math.sin(a)*2.1); s.rotation.y += dt*1.5; }); if (FRAG_BEAM.visible) FRAG_BEAM.rotation.y += dt*.3; }
+setFrag(0);
+
+/* --- campagne : Golem (5), Liche (10), Wyrm (15), Archimage (20), puis mode infini --- */
+const bossFor = w => w === 20 ? 14 : w > 20 && w % 20 === 0 ? 14 : 3 + ((w/5 - 1) % 3);
+W.fragSet = 0;
+function campaignBossDown(m){
+  const fi = {3:0, 4:1, 5:2}[m.type];
+  if (fi != null && !(W.fragSet & (1 << fi))) { W.fragSet |= 1 << fi; const n = Math.min(3, (W.fragSet & 1) + (W.fragSet >> 1 & 1) + (W.fragSet >> 2 & 1)); W.hits.push(['frag', n, fi + 1]); onFrag(n, fi + 1); }
+  if (m.type === 14 && !W.won) { W.won = 1; W.hits.push(['frag', 4, 5]); onFrag(4, 5); }
+}
+function onFrag(n, page){ setFrag(n); flash(0, 5, 0, '#bfe2ff', 12, 1.2); puff(0, 4.6, 0, '#bfe2ff', 60, 10, 1.4, 1, 2);
+  if (page === 5) { banner('Victoire !', 'Le Cristal d\'Harmonie est reformé'); setTimeout(() => showStory(5), 2500); }
+  else { banner('Fragment ' + n + '/3 récupéré', 'Le Cristal d\'Harmonie se reforme'); setTimeout(() => showStory(page), 2200); } }
+
+/* --- ARCHIMAGE : sorts retournés, nova, reflets, DUEL VOCAL --- */
+MT.push({n:'Archimage Velkar', hp:2600, spd:3, dmg:20, r:1.4, h:5, reach:3, cd:1.6, boss:1},
+        {n:'Reflet de Velkar', hp:160, spd:3.4, dmg:6, r:.7, h:2.8, reach:1.8, cd:1.2, ranged:{min:5, max:22, cd:2.2, dmg:8}});
+WEAK[15] = {spirit:1.5, shadow:.6};
+const ELS = ['fire', 'ice', 'storm', 'spirit', 'shadow'], ELCOL = {fire:'#ff7a2a', ice:'#7fdcff', storm:'#ffe14a', spirit:'#c08aff', shadow:'#5aff9c'};
+let DUEL = null, DUEL_UI = null;
+const ALL_PHRASES = () => Object.values(INCV).flat();
+function startDuel(m){ const ph = ALL_PHRASES()[Math.floor(Math.random()*ALL_PHRASES().length)]; DUEL = {id:m.id, phrase:ph, t:7}; m.a = 1; W.hits.push(['duel', m.id, ph, 7]); showDuel(ph, 7); }
+function showDuel(ph, t){ DUEL_UI = {phrase:ph, t, T:t, done:false}; $('#duelp').textContent = '« ' + ph + ' »'; $('#duel').classList.remove('hidden'); sfx('boom', .3); }
+function hideDuel(){ DUEL_UI = null; $('#duel').classList.add('hidden'); }
+function duelCheck(text){ if (!DUEL_UI || DUEL_UI.done || !text) return false; const a = norm(text).replace(/ /g, ''), b = norm(DUEL_UI.phrase).replace(/ /g, '');
+  const s = Math.max(simil(a, b), simil(pho(a), pho(b)), a.includes(b) ? 1 : 0); if (s < .64) return false;
+  DUEL_UI.done = true; $('#duelp').textContent = 'Mot prononcé !'; if (isHost) duelWin(me.peer); else if (room) room.emit('pick', {duel:1}).catch(() => {}); return true; }
+function duelWin(peer){ if (!DUEL) return; const m = mons.get(DUEL.id); DUEL = null; if (m) m.stun = 5; const nm = peer === me.peer ? me.name : (others.get(peer) || {}).name || 'Un sorcier'; W.hits.push(['duelok', m ? m.id : -1, nm.slice(0, 16)]); duelOkFx(m, nm); }
+function duelFail(m){ DUEL = null; for (const p of players()) hitPlayer(p.peer, 32); W.hits.push(['duelko', m.id]); duelKoFx(m); }
+function duelOkFx(m, nm){ hideDuel(); banner('Sort brisé !', nm + ' a prononcé le Mot de pouvoir · Velkar est étourdi'); if (m) { m.stunV = 5; flash(m.x, 4, m.z, '#ffffff', 10, .6); puff(m.x, 4, m.z, '#ffffff', 50, 10, 1, .8, 1); shockwave(m.x, .2, m.z, 8, '#bfe2ff', .7); } }
+function duelKoFx(m){ hideDuel(); banner('Le Mot de pouvoir éclate !', 'Personne n\'a répondu à Velkar'); if (m) { flash(m.x, 4, m.z, '#c08aff', 14, .8); shockwave(m.x, .2, m.z, 30, '#c08aff', 1.1); for (let i = 0; i < 8; i++) { const a = i/8*6.28; lightning([new THREE.Vector3(m.x, 5, m.z), new THREE.Vector3(m.x + Math.cos(a)*14, .2, m.z + Math.sin(a)*14)], '#c08aff', .5, .08, .04); } shake = Math.min(1, shake + .8); } }
+function duelTick(dt){ if (!DUEL_UI) return; DUEL_UI.t -= dt; $('#duelb').style.transform = 'scaleX(' + clamp(DUEL_UI.t/DUEL_UI.T, 0, 1) + ')'; if (DUEL_UI.t < -1.5) hideDuel(); }
+function mirrorFx(m, x, z, fl, el){ const col = ELCOL[el] || '#c08aff'; warnRing(x, z, 2.2, new THREE.Color(col).getHex(), fl); const orb = spellVisual(el, .45, col); scene.add(orb.mesh); const sx = m.x, sz = m.z, sy = 5.5;
+  fx.push({t:0, dur:fl, upd:k => { orb.mesh.position.set(sx + (x - sx)*k, sy + (.5 - sy)*k + Math.sin(k*Math.PI)*3, sz + (z - sz)*k); orb.upd(1/60, {v:new THREE.Vector3(x - sx, -3, z - sz)}); }, end:() => { scene.remove(orb.mesh); impactFx(x, .3, z, el, col, true); }}); }
+function anovaFx(m, fl){ warnRing(m.x, m.z, 7.5, 0xc08aff, fl); fx.push({t:0, dur:fl, upd:() => {}, end:() => { ringFx(m.x, m.z, 7.5, '#c08aff', .6, 'spirit'); flash(m.x, 2, m.z, '#c08aff', 8, .4); }}); }
+
+/* extensions des mécaniques de boss */
+{ const bs = bossSpawned; bossSpawned = m => { bs(m); if (m.type === 14) { m.bt = 3; m.nt = 8; m.dt = 10; bossMsg('L\'Archimage Velkar ! Quand il lance un Mot de pouvoir, criez-le avant lui'); } }; }
+{ const st = bossStep; bossStep = (m, t, tg, bd, P, dt) => {
+  if (m.type === 14) {
+    m.stun = Math.max(0, (m.stun || 0) - dt); if (m.stun > 0) return 'skip';
+    m.bt -= dt; if (m.bt <= 0 && P.length) { m.bt = m.hp < m.max*.5 ? 1.8 : 2.6; m.a = .5; const tp = P[Math.floor(Math.random()*P.length)], el = ELS[Math.floor(Math.random()*5)], fl = 1.1; W.rocks.push({t:fl, x:tp.x, z:tp.z, r:2.2, dmg:15}); W.hits.push(['mirror', m.id, r2(tp.x), r2(tp.z), fl, el]); mirrorFx(m, tp.x, tp.z, fl, el); }
+    m.nt -= dt; if (m.nt <= 0) { m.nt = 9; m.a = .9; W.rocks.push({t:1.3, x:m.x, z:m.z, r:7.5, dmg:22}); W.hits.push(['anova', m.id, 1.3]); anovaFx(m, 1.3); }
+    if (!m.p2 && m.hp < m.max*.5) { m.p2 = 1; m.minions = []; for (let i = 0; i < 3; i++) { spawnMon(15); const n = [...mons.values()].pop(); const a = i*2.09; n.x = m.x + Math.cos(a)*5; n.z = m.z + Math.sin(a)*5; n.tx = n.x; n.tz = n.z; } bossMsg('Velkar se dédouble : ses reflets tirent à distance !'); }
+    m.dt -= dt; if (m.dt <= 0 && !DUEL) { m.dt = 22; startDuel(m); }
+    if (DUEL && DUEL.id === m.id) { DUEL.t -= dt; if (DUEL.t <= 0) duelFail(m); }
+    return bd < 6 ? -1 : 0; }
+  return st(m, t, tg, bd, P, dt); }; }
+{ const ok = bossOnKill; bossOnKill = m => { ok(m); if (MT[m.type].boss) campaignBossDown(m); if (m.type === 14) { DUEL = null; for (const n of [...mons.values()]) if (n.type === 15) killMon(n); } }; }
+{ const bd = bossDamage; bossDamage = (m, dmg) => m.type === 14 && m.stun > 0 ? dmg*2 : bd(m, dmg); }
+{ const bh = bossHit; bossHit = h => { bh(h); const m = mons.get(h[1]);
+  if (h[0] === 'frag' && fin(h[1])) { if (h[2]) onFrag(h[1], h[2]); else setFrag(h[1]); }
+  else if (h[0] === 'duel' && typeof h[2] === 'string') showDuel(h[2].slice(0, 40), clamp(+h[3] || 7, 2, 10));
+  else if (h[0] === 'duelok') duelOkFx(m, typeof h[2] === 'string' ? h[2] : 'Un sorcier');
+  else if (h[0] === 'duelko') duelKoFx(m);
+  else if (h[0] === 'mirror' && m && fin(h[2]) && fin(h[3])) mirrorFx(m, h[2], h[3], clamp(+h[4] || 1.1, .3, 3), ELS.includes(h[5]) ? h[5] : 'spirit');
+  else if (h[0] === 'anova' && m) anovaFx(m, clamp(+h[2] || 1.3, .3, 3)); }; }
+
+/* modèle de l'Archimage (et de ses reflets) */
+function archiModel(g, body, S, ghost){
+  g.userData.noSquash = true; body.scale.setScalar(S);
+  const robe = ghost ? new THREE.MeshStandardMaterial({color:0x8a7aff, emissive:0x3a2a9a, emissiveIntensity:1, transparent:true, opacity:.55, depthWrite:false, side:THREE.DoubleSide}) : bmat('boss_lich', 3, 1, {c:0x8a8aff, e:1, ei:.8, ns:1.2, side:THREE.DoubleSide, rim:.4});
+  const gold = smat('lbGold', () => pbr({c:0xd8b25a, d:'metal', r:.22, m:1, ns:.6})), dark = smat('arDark', () => pbr({c:0x14101e, d:'leather', r:.8, ns:1.2, side:THREE.DoubleSide}));
+  const fly = grp(body, 0, 1.2, 0);
+  const rb = new THREE.Mesh(geo('ar_robe', () => { const pr = [[1.05, 0], [.95, .6], [.72, 1.6], [.52, 2.6], [.46, 3.1], [.58, 3.35], [.001, 3.5]].map(([r, y]) => new THREE.Vector2(r, y)); const lg = organic(new THREE.LatheGeometry(pr, 44), .02, 3, 9, v => Math.sin(Math.atan2(v.z, v.x)*9 + v.y)*.035*(1.2 - v.y/3.5)), p = lg.attributes.position; for (let i = 0; i < p.count; i++) if (p.getY(i) < .05) p.setY(i, p.getY(i) + hh3(Math.round(Math.atan2(p.getZ(i), p.getX(i))*9), 5, 2)*.35); lg.computeVertexNormals(); return lg; }), robe); fly.add(rb);
+  for (let i = 0; i < 7; i++) { const a = Math.PI + (i - 3)*.32, c = new THREE.Mesh(geo('ar_col', () => ptube([[0, 0, 0], [0, .35, -.05], [0, .7, -.2]], .09, .01, 10, 6)), gold); c.position.set(Math.sin(a)*.5, 3.3, Math.cos(a)*.5); c.rotation.set(-.3, a, 0); fly.add(c); }
+  const head = grp(fly, 0, 3.75, .02);
+  const hood = new THREE.Mesh(geo('ar_hood', () => { const hg = organic(new THREE.SphereGeometry(.38, 28, 18, Math.PI/2 + .8, Math.PI*2 - 1.6, 0, Math.PI*.72), .02, 7, 4), p = hg.attributes.position; for (let v = 0; v < p.count; v++) { const y = p.getY(v), z = p.getZ(v); if (y > .15 && z < 0) { p.setY(v, y + (y - .15)*.8); p.setZ(v, z - (y - .15)*.5); } } hg.computeVertexNormals(); return hg; }), ghost ? robe : dark); head.add(hood);
+  const face = new THREE.Mesh(geo('wz_face', () => new THREE.SphereGeometry(.15, 18, 14)), smat('blk', () => new THREE.MeshBasicMaterial({color:0x040303}))); face.scale.set(1.5, 1.6, 1.2); face.position.z = .04; head.add(face);
+  [-1, 1].forEach(s => eyeGlow(head, s*.1, .03, .25, 0xe6d8ff, .03, .55, 4));
+  const crown = grp(head, 0, .55, 0); RUNE_TX.forEach((tx, i) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({map:tx, color:0xd8c0ff, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.9, fog:false})); s.scale.setScalar(.22); const a = i/RUNE_TX.length*Math.PI*2; s.position.set(Math.cos(a)*.45, 0, Math.sin(a)*.45); crown.add(s); });
+  const arm = s => { const sh = grp(fly, s*.6, 3.05, 0); sh.add(new THREE.Mesh(geo('ar_sl', () => organic(ptube([[0, 0, 0], [0, -.35, .05], [0, -.75, .1]], .16, .3, 12, 14), .015, 6)), robe)); const hand = grp(sh, 0, -.82, .12); hand.add(new THREE.Mesh(geo('wz_hd', () => organic(new THREE.SphereGeometry(.055, 12, 10), .006, 20)), smat('wzLeath', () => pbr({c:0x3a2216, d:'leather', r:.65, ns:1.6})))); hand.children[0].scale.setScalar(1.6); return {sh, hand}; };
+  const aR = arm(1), aL = arm(-1);
+  const staff = grp(aR.hand, 0, -.1, .06); staff.add(new THREE.Mesh(geo('ar_stf', () => uvSwap(ptube([[0, -2.2, 0], [.02, -.6, -.02], [-.02, .9, .02], [0, 2.1, 0]], .05, .04, 30, 8, .006, 12), 1, 6)), smat('stWD', () => pbr({c:0x3a2414, d:'bark', r:.8, ns:2.2}))));
+  const shards = grp(staff, 0, 2.35, 0); ELS.forEach((el, i) => { const c = new THREE.Mesh(geo('ar_sh', () => new THREE.OctahedronGeometry(.1).scale(1, 1.8, 1)), hotMat(new THREE.Color(ELCOL[el]).getHex(), 3)); const a = i/5*Math.PI*2; c.position.set(Math.cos(a)*.3, 0, Math.sin(a)*.3); shards.add(c); });
+  const aura = new THREE.Sprite(glowSprite(0x9a7aff, ghost ? .25 : .4)); aura.scale.setScalar(6); aura.position.y = 2.2; fly.add(aura);
+  const palm = new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex, color:0xd8c0ff, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:0, fog:false})); palm.scale.setScalar(1.2); aL.hand.add(palm);
+  const sigil = new THREE.Mesh(geo('ar_sg', () => new THREE.RingGeometry(1.8, 2, 64).rotateX(-Math.PI/2)), new THREE.MeshBasicMaterial({color:new THREE.Color(0x9a7aff).multiplyScalar(2), transparent:true, opacity:ghost ? .3 : .7, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, toneMapped:false})); sigil.position.y = .22; body.add(sigil);
+  const sm = smooth3(), m0 = {}; let stunV = 0;
+  return (k, mv0, at0, hu) => { sm.s(mv0, at0, hu); const at = sm.at, hit = sm.hu; const mm = [...mons.values()].find(x => x.g === g); if (mm && mm.stunV > 0) { mm.stunV -= 1/60; } stunV += (((mm && (mm.stunV > 0 || mm.stun > 0)) ? 1 : 0) - stunV)*.08;
+    fly.position.y = 1.2 + Math.sin(k*1.6)*.3 - stunV*.9; fly.rotation.x = stunV*.5 - hit*.15; fly.rotation.z = Math.sin(k*1.1)*.05;
+    aR.sh.rotation.set(-.3 - at*1.5 + stunV*.8, 0, .1); aL.sh.rotation.set(-.4 - at*1.8 + stunV*.8, 0, -.2 - at*.4); palm.material.opacity = at*.95;
+    head.rotation.set(-at*.2 + stunV*.5, Math.sin(k*.6)*.3, 0); crown.rotation.y = k*(1 - stunV*.8); shards.rotation.y = -k*2; sigil.rotation.y = k*.5; aura.material.opacity = (ghost ? .2 : .35) + at*.3 - stunV*.2; };
+}
+ORGB[14] = (g, body) => archiModel(g, body, 1.25, false);
+ORGB[15] = (g, body) => archiModel(g, body, .75, true);
+
+/* HEALING : échange 30 mana contre 22 PV (8 s de recharge), crié ou touche H */
+const HEALING = {mana:30, hp:22, cd:8}; let healCd = 0;
+function castHealing(){ if (paused || storyFreeze || me.dead || !playing) return false; const n = now();
+  if (n < healCd) { toast('Healing se recharge (' + Math.ceil(healCd - n) + ' s)'); return true; }
+  if (me.mp < HEALING.mana) { toast('Pas assez de mana pour Healing (' + HEALING.mana + ')'); return true; }
+  me.mp -= HEALING.mana; healCd = n + HEALING.cd; heal(HEALING.hp); staffKick = 1; burstT = .38; STAFF_COL.set('#5aff9c').multiplyScalar(1.6);
+  for (let i = 0; i < 18; i++) { const a = i/18*Math.PI*4; puff(me.x + Math.cos(a)*.8, .2 + i*.11, me.z + Math.sin(a)*.8, i % 2 ? '#7dff9c' : '#e8ffe0', 1, .3, .3, .9, 1.5); }
+  flash(me.x, 1.5, me.z, '#5aff9c', 2.5, .4); sfx('cast', .4); toast('Healing : +' + HEALING.hp + ' PV'); return true; }
+function healCheck(text, final){ if (!text) return false; for (const x of norm(text).split(' ')) { if (!x) continue; const sc = Math.max(simil(x, 'healing'), simil(pho(x), pho('healing')) - .02, ['heal', 'heel', 'hill', 'soin', 'soigne', 'healing'].includes(x) ? 1 : 0);
+  if (sc >= .76 && (final || sc >= .9)) { castHealing(); return true; } } return false; }
+
 /* ---------- client sync ---------- */
 function onWorld(msg){
   if (isHost || msg.peer !== hostPeer) return; const D = msg.data; if (!D || !Array.isArray(D.m)) return;
@@ -2764,7 +2930,7 @@ function showCode(){
 function wireHandlers(){
   room.on('cast', msg => { if (msg.sameTab) return; applyCast(msg.data, msg.peer, false); });
   room.on('world', onWorld);
-  room.on('pick', msg => { if (!isHost || msg.sameTab || !msg.data) return; if (fin(msg.data.id)) { const d = drops.get(msg.data.id), o = others.get(msg.peer); if (d && o && Math.hypot(d.x-o.tx, d.z-o.tz) < 4) takeDrop(msg.data.id, msg.peer); } else if (Array.isArray(msg.data.drop) && msg.data.drop.every(fin) && mode === 'pvp') addDrop('tome', clamp(msg.data.drop[0], -47, 47), clamp(msg.data.drop[1], -47, 47)); });
+  room.on('pick', msg => { if (!isHost || msg.sameTab || !msg.data) return; if (msg.data.duel) { duelWin(msg.peer); return; } if (fin(msg.data.id)) { const d = drops.get(msg.data.id), o = others.get(msg.peer); if (d && o && Math.hypot(d.x-o.tx, d.z-o.tz) < 4) takeDrop(msg.data.id, msg.peer); } else if (Array.isArray(msg.data.drop) && msg.data.drop.every(fin) && mode === 'pvp') addDrop('tome', clamp(msg.data.drop[0], -47, 47), clamp(msg.data.drop[1], -47, 47)); });
   room.on('taken', msg => { const D = msg.data; if (msg.peer !== hostPeer || !D || !fin(D.id)) return; const d = drops.get(D.id); if (d) { scene.remove(d.g); drops.delete(D.id); } if (D.to === me.peer && ['tome','hp','mp','pw'].includes(D.t)) grant(D.t); });
   room.on('chat', msg => { const D = msg.data; if (!D || typeof D.x !== 'string') return; const o = others.get(msg.peer); const nm = msg.sameTab ? me.name : o ? o.name : 'Sorcier'; addChat(nm, D.x.slice(0, 140), msg.sameTab ? me.cls : o && o.cls); });
   room.on('kill', msg => { const D = msg.data; if (!D) return; const v = others.get(msg.peer); if (D.by === me.peer) { me.pk++; toast('Vous avez éliminé ' + (v ? v.name : 'un sorcier')); } else if (v) { const k = D.by && others.get(D.by); sys((k ? k.name : 'Un sorcier') + ' a éliminé ' + v.name); } });
@@ -2801,7 +2967,7 @@ function banner(a, b){ $('#banner').innerHTML = esc(a) + (b ? '<small>' + esc(b)
 let lastWave = 0, lastSt = '', hudT = 0;
 function updHud(dt){
   hudT -= dt; banT -= dt; if (banT <= 0) $('#banner').classList.remove('on');
-  if (W.w !== lastWave && W.st === 'fight') { lastWave = W.w; banner('Vague ' + W.w, W.w % 5 === 0 ? 'Un boss approche !' : 'Les monstres sortent des bois'); }
+  if (W.w !== lastWave && W.st === 'fight') { lastWave = W.w; if (W.w === 20) setTimeout(() => showStory(4), 1800); banner('Vague ' + W.w, W.w % 5 === 0 ? 'Un boss approche !' : 'Les monstres sortent des bois'); }
   if (W.st === 'over' && lastSt !== 'over') banner('La horde a vaincu', 'Vague ' + W.w + ' atteinte · nouvelle partie dans un instant');
   if (W.st === 'break' && lastSt === 'over') { lastWave = 0; if (me.dead) respawn(); }
   lastSt = W.st;
@@ -2826,6 +2992,8 @@ addEventListener('keydown', e => {
   if (!playing || document.activeElement === $('#chatin')) return;
   keys[e.code] = true;
   if (e.code === 'KeyV') toggleMic();
+  if (e.code === 'KeyH') castHealing();
+  if (e.code === 'KeyG') { e.preventDefault(); openGuide(); }
   if (e.code === 'KeyM') musToggle();
   if (e.code === 'Enter') { e.preventDefault(); openChat(true); }
   if (e.code === 'KeyT') { e.preventDefault(); openChat(false); }
@@ -2844,6 +3012,7 @@ document.addEventListener('pointerlockchange', () => { const p = playing && !loc
   if (p && !paused) { paused = true; if (room) netLeave(); } else if (locked()) paused = false; updPause(); });
 $('#presume').onclick = () => { try { const r = renderer.domElement.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch (e) {} };
 $('#preco').onclick = async () => { $('#preco').disabled = true; const ok = await netRejoin(); $('#preco').disabled = false; if (ok) $('#presume').onclick(); };
+$('#pguide').onclick = () => openGuide();
 $('#pquit').onclick = () => { netLeave(); location.href = location.pathname; };
 renderer.domElement.addEventListener('mousedown', e => {
   if (!playing) return;
@@ -2891,6 +3060,7 @@ async function begin(kind){
     catch (e) { sys('Partie « ' + code + ' » introuvable ou injoignable : vous jouez seul.'); room = null; try { peerObj && peerObj.destroy(); } catch (er) {} }
   } else sys('Partie solo.');
   hostReady = true; computeHost();
+  setTimeout(() => showStory(0), 600); setTimeout(() => toast('Astuce : G ouvre le guide du sorcier · criez « Healing » pour vous soigner'), 9000);
 }
 $('#host').onclick = () => begin('host');
 $('#go').onclick = () => begin('join');
@@ -2901,7 +3071,7 @@ $('#code').addEventListener('keydown', e => { if (e.key === 'Enter') begin('join
 const clock = new THREE.Clock(); let T = 0, mmT = 0; const QA = {auto:true, n:0, t:0}; let T_unused = 0, callT = 0, levelAn = null, wdT = 0; const lvBuf = new Uint8Array(512);
 function loop(){
   requestAnimationFrame(loop);
-  let dt = Math.min(clock.getDelta(), .05); if (paused) dt = 0; T += dt;
+  let dt = Math.min(clock.getDelta(), .05); if ((paused && !room) || storyFreeze) dt = 0; T += dt; fragTick(dt); duelTick(dt);
   WIND.value = T; SPU.uT.value = T % 1000; updateAtmosphere(dt); SKY_U.uT.value = T; if (gradePass) { GRADE.uniforms.uT.value = T % 100; GRADE.uniforms.uHurt.value *= Math.pow(.1, dt); } rune.rotation.z += dt*.1; rune.material.opacity = .6 + Math.sin(T*2)*.25;
   crystal.rotation.y += dt*.8; crystal.position.y = 4.56 + Math.sin(T*1.5)*.25; altarLight.intensity = 1.1 + Math.sin(T*3)*.15 + Math.random()*.08;
   if (Math.random() < .7) { const b = BRAZ[Math.floor(Math.random()*BRAZ.length)]; puff(b.x + (Math.random() - .5)*.5, b.y, b.z + (Math.random() - .5)*.5, Math.random() < .5 ? '#ff9a3a' : '#ffcf5a', 1, .5, b.small ? .25 : .5, .9, 2.4); }
@@ -2928,7 +3098,7 @@ function loop(){
       if (ml > 0) { me.x += mx/ml*sp*dt; me.z += mz/ml*sp*dt; }
       collide(me, .5, 47.5);
       me.vy -= 20*dt; me.y = Math.max(1.7, me.y + me.vy*dt); if (me.y <= 1.7) me.vy = 0;
-      me.mp = Math.min(me.maxMp, me.mp + 1.5*dt); if (me.pwT > 0) me.pwT -= dt; /* pas de régénération de vie : seules les potions soignent */
+      me.mp = Math.min(me.maxMp, me.mp + 1.5*dt); if (me.pwT > 0) me.pwT -= dt; /* régénération de vie très lente, seulement après 6 s sans dégâts */ if (!me.dead && T - (me.hurtT ?? -99) > 6) me.hp = Math.min(100, me.hp + .2*dt); if (!me.dead && T - (me.hurtT ?? -99) > 6) me.hp = Math.min(100, me.hp + .2*dt);
       for (const [id, d] of drops) if (Math.hypot(d.x-me.x, d.z-me.z) < 1.8) { if (isHost) takeDrop(id, me.peer); else if (room && (pending[id] || 0) < now()) { pending[id] = now() + 1; room.emit('pick', {id}).catch(()=>{}); } }
     }
     camera.position.set(me.x, me.dead ? 3.2 : me.y + (me.dead ? 0 : Math.sin(T*9)*.03*(keys.KeyW ? 1 : 0)), me.z);
