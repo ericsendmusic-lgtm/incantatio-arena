@@ -350,12 +350,24 @@ function monsterMesh(t){
   scene.add(g); return g;
 }
 function dropMesh(t){
-  const g = new THREE.Group();
-  if (t === 'tome') { const c = new THREE.Mesh(new THREE.BoxGeometry(.7,.18,.9), new THREE.MeshStandardMaterial({color:0x5a2c19, emissive:0x2a0e40})); g.add(c); const p = new THREE.Mesh(new THREE.BoxGeometry(.62,.2,.8), new THREE.MeshStandardMaterial({color:0xeadbb9})); p.position.x = .03; g.add(p); const beam = new THREE.Mesh(new THREE.CylinderGeometry(.25,.25,8,8,1,true), new THREE.MeshBasicMaterial({color:0xc98cff, transparent:true, opacity:.25, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide})); beam.position.y = 4; g.add(beam); }
-  else { const c = t === 'hp' ? 0xff3b4a : 0x47a8ff; const m = new THREE.Mesh(t === 'hp' ? new THREE.SphereGeometry(.28,10,10) : new THREE.OctahedronGeometry(.32), new THREE.MeshStandardMaterial({color:c, emissive:c, emissiveIntensity:.6})); g.add(m); }
+  const g = new THREE.Group(), col = t === 'tome' ? 0xc98cff : t === 'hp' ? 0xff4a5a : 0x4ab0ff;
+  const item = new THREE.Group(); g.add(item);
+  if (t === 'tome') { const c = new THREE.Mesh(new THREE.BoxGeometry(.7,.18,.9), new THREE.MeshStandardMaterial({color:0x5a2c19, emissive:0x2a0e40})); item.add(c); const p = new THREE.Mesh(new THREE.BoxGeometry(.62,.2,.8), new THREE.MeshStandardMaterial({color:0xeadbb9, emissive:0x3a2a10})); p.position.x = .03; item.add(p); }
+  else { const m = new THREE.Mesh(t === 'hp' ? new THREE.SphereGeometry(.28,12,12) : new THREE.OctahedronGeometry(.32), new THREE.MeshStandardMaterial({color:col, emissive:col, emissiveIntensity:.7})); item.add(m); }
+  /* halo lumineux au-dessus de l'objet */
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex, color:col, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.9}));
+  halo.position.y = .9; halo.scale.setScalar(1.6); g.add(halo);
+  const crown = new THREE.Mesh(new THREE.TorusGeometry(.42,.035,8,32), new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:.9, blending:THREE.AdditiveBlending, depthWrite:false}));
+  crown.rotation.x = Math.PI/2; crown.position.y = .75; g.add(crown);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex, color:col, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.55}));
+  glow.scale.setScalar(2.2); g.add(glow);
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(.22, .22, t === 'tome' ? 9 : 5, 10, 1, true), new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:t === 'tome' ? .28 : .18, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide}));
+  beam.position.y = t === 'tome' ? 4.5 : 2.5; g.add(beam);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(.55, .8, 32), new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:.6, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide}));
+  ring.rotation.x = -Math.PI/2; g.add(ring);
+  g.userData = {item, halo, crown, ring, glow};
   scene.add(g); return g;
 }
-
 /* ---------- state ---------- */
 const me = {cls:'fire', name:'', peer:null, x:0, y:1.7, z:8, vy:0, yaw:0, pitch:0, hp:100, mp:100, maxMp:100, dead:false, rT:0, since:0, pk:0, mk:0, deaths:0};
 let known = [], page = 0, cds = {}, playing = false, mode = 'coop', isHost = false, hostPeer = null, hostReady = false;
@@ -907,7 +919,10 @@ function loop(){
     if (m.flash > 0) { m.flash -= dt; g.traverse(o => { if (o.material && o.material.emissive) o.material.emissive.setHex(m.flash > 0 ? 0x662222 : 0); }); }
     if (g.userData.bar) { g.userData.bar.quaternion.copy(camera.quaternion); g.userData.bar.quaternion.premultiply(g.quaternion.clone().invert()); const k = clamp(m.hp/m.max, 0, 1); g.userData.bar.userData.fg.scale.x = k || .001; g.userData.bar.userData.fg.position.x = -.6*(1-k); }
   }
-  for (const d of drops.values()) { d.g.position.set(d.x, .9 + Math.sin(T*3 + d.id)*.2, d.z); d.g.rotation.y += dt*1.5; }
+  for (const d of drops.values()) { const u = d.g.userData, k = Math.sin(T*3 + d.id);
+    d.g.position.set(d.x, 0, d.z); u.item.position.y = .9 + k*.2; u.item.rotation.y += dt*1.5; u.glow.position.y = u.item.position.y;
+    u.halo.position.y = 1.7 + k*.2; u.halo.scale.setScalar(1.4 + Math.sin(T*5 + d.id)*.35); u.crown.position.y = 1.55 + k*.2; u.crown.rotation.z += dt*2;
+    u.ring.position.y = .06; u.ring.scale.setScalar(1 + ((T*.8 + d.id*.3) % 1)*.8); u.ring.material.opacity = .6*(1 - ((T*.8 + d.id*.3) % 1)); }
 
   for (let i = proj.length-1; i >= 0; i--) {
     const p = proj[i]; p.life -= dt; let dead = p.life <= 0;
