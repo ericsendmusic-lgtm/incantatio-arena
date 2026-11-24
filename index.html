@@ -136,7 +136,7 @@ button{cursor:pointer}
     <div class="row">
       <label class="field">Nom de sorcier<input id="nm" maxlength="16" autocomplete="off"></label>
       <label class="field">Code pour rejoindre<input id="code" maxlength="8" autocomplete="off" placeholder="ex. k7f2q"></label>
-      <label class="field">Reconnaissance vocale<select id="eng"><option value="whisper">Whisper (précis, tous navigateurs)</option><option value="browser">Navigateur (Chrome/Edge)</option></select></label>
+      <label class="field">Reconnaissance vocale<select id="eng"><option value="moonshine">Rapide : Moonshine (noms anglais)</option><option value="whisper">Whisper (accepte le français, plus lent)</option><option value="browser">Navigateur (Chrome/Edge)</option></select></label>
       <label class="field">Langue du micro<select id="lang"><option value="fr-FR">Français (accent français)</option><option value="en-US">Anglais</option></select></label>
       <div class="field">Mode<div class="seg" id="mode"><button data-m="coop" aria-pressed="true">Coop</button><button data-m="pvp" aria-pressed="false">Chacun pour soi</button></div></div>
     </div>
@@ -421,21 +421,23 @@ function onSpeech(raw, final){
 }
 /* ---------- Whisper : vrai modèle de reconnaissance vocale, exécuté dans le navigateur ---------- */
 const engine = () => $('#eng').value === 'browser' && SR ? 'browser' : 'whisper';
-let asrW = null, asrReady = false, asrErr = '', asrPct = 0, asrDev = '', asrBusy = false, asrNext = null, asrId = 0, testing = false;
+const aiModel = () => $('#eng').value === 'whisper' ? 'whisper' : 'moonshine';
+let asrModel = '', asrW = null, asrReady = false, asrErr = '', asrPct = 0, asrDev = '', asrBusy = false, asrNext = null, asrId = 0, testing = false;
 const asrFiles = {};
 const WORKER = `
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3';
 env.allowLocalModels = false;
-let asr = null;
+let asr = null, isW = false;
 self.onmessage = async e => {
   const d = e.data;
   if (d.type === 'load') {
-    try { asr = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', { device: 'wasm', dtype: 'q8', progress_callback: p => { if (p.status === 'progress') self.postMessage({type:'prog', file:p.file, p:p.progress}); } }); }
+    isW = d.model === 'whisper';
+    try { asr = await pipeline('automatic-speech-recognition', isW ? 'Xenova/whisper-tiny' : 'onnx-community/moonshine-tiny-ONNX', { device: 'wasm', dtype: 'q8', progress_callback: p => { if (p.status === 'progress') self.postMessage({type:'prog', file:p.file, p:p.progress}); } }); }
     catch (er) { self.postMessage({type:'err', msg:String(er && er.message || er)}); return; }
     self.postMessage({type:'ready', dev:'wasm'});
   }
   if (d.type === 'asr' && asr) {
-    try { const out = await asr(d.audio, {language:d.lang, task:'transcribe', max_new_tokens:16}); self.postMessage({type:'text', id:d.id, text:out.text || ''}); }
+    try { const out = await asr(d.audio, isW ? {language:d.lang, task:'transcribe', max_new_tokens:16} : {max_new_tokens:16}); self.postMessage({type:'text', id:d.id, text:out.text || ''}); }
     catch (er) { self.postMessage({type:'text', id:d.id, text:''}); }
   }
 };`;
@@ -449,10 +451,10 @@ function loadASR(){
     if (d.type === 'err') { asrErr = d.msg; asrStatus(); }
     if (d.type === 'text') { asrBusy = false; onWhisper(d.text); if (asrNext) { const n = asrNext; asrNext = null; sendASR(n); } } };
   asrW.onerror = () => { asrErr = 'worker'; asrStatus(); };
-  asrW.postMessage({type:'load'});
+  asrW.postMessage({type:'load', model:aiModel()}); asrModel = aiModel();
 }
 function asrStatus(){
-  const t = asrErr ? 'Le modèle vocal n\'a pas pu se charger : vérifiez votre connexion, ou choisissez « Navigateur » dans Chrome/Edge.' : asrReady ? 'Modèle vocal prêt : cliquez sur « Tester le micro » ou lancez une partie.' : 'Téléchargement du modèle vocal Whisper… ' + asrPct + ' % (une seule fois)';
+  const t = asrErr ? 'Le modèle vocal n\'a pas pu se charger : vérifiez votre connexion, ou choisissez « Navigateur » dans Chrome/Edge.' : asrReady ? 'Modèle vocal prêt : cliquez sur « Tester le micro » ou lancez une partie.' : 'Téléchargement du modèle vocal… ' + asrPct + ' % (une seule fois)';
   if (!testing) $('#mtest').textContent = t;
   if (playing) setMic(micWanted ? 'on' : 'off');
 }
@@ -482,7 +484,7 @@ function onChunk(ch){
   } else {
     vadBuf.push(c); vadLen += dur;
     if (rms < Math.max(vadFloor*2.2, .009)) vadSil += dur; else vadSil = 0;
-    if (vadSil > .38 || vadLen > 3) { vadOn = false; if (vadLen - vadSil > .18) sendASR(vadBuf); vadBuf = []; }
+    if (vadSil > (asrModel === 'whisper' ? .38 : .26) || vadLen > 3) { vadOn = false; if (vadLen - vadSil > .18) sendASR(vadBuf); vadBuf = []; }
   }
 }
 function to16k(chunks){
@@ -498,8 +500,8 @@ function sendASR(chunks){
   if (playing) $('#mict').textContent = 'Déchiffrage de l\'incantation…';
   asrW.postMessage({type:'asr', id:++asrId, audio, lang:$('#lang').value.startsWith('fr') ? 'french' : 'english'}, [audio.buffer]);
 }
-$('#eng').addEventListener('change', () => { if (engine() === 'whisper') loadASR(); else $('#mtest').textContent = 'Reconnaissance du navigateur : dites le premier sort de votre classe avec le bouton de test.'; });
-try { const s3 = JSON.parse(localStorage.getItem('incantatio') || '{}'); if (s3.e && !(s3.e === 'browser' && !SR)) $('#eng').value = s3.e; } catch (e) {}
+$('#eng').addEventListener('change', () => { if (engine() === 'whisper' && asrW && asrModel !== aiModel()) { asrW.terminate(); asrW = null; asrReady = false; asrErr = ''; asrPct = 0; asrBusy = false; for (const k in asrFiles) delete asrFiles[k]; } if (engine() === 'whisper') loadASR(); else $('#mtest').textContent = 'Reconnaissance du navigateur : dites le premier sort de votre classe avec le bouton de test.'; });
+try { const s3 = JSON.parse(localStorage.getItem('incantatio') || '{}'); if (s3.e2 && !(s3.e2 === 'browser' && !SR)) $('#eng').value = s3.e2; } catch (e) {}
 setTimeout(loadASR, 300);
 
 function setMic(s){ if (engine() === 'whisper') { if (asrErr) s = 'na'; else if (!asrReady) s = 'load'; } else if (!SR) s = 'na'; const el = $('#mic'); el.classList.toggle('on', s === 'on'); $('#mict').textContent = s === 'load' ? 'Modèle vocal : ' + asrPct + ' %…' : s === 'on' ? 'Micro actif · criez votre sort' : s === 'na' ? 'Sorts au clavier : Entrée pour écrire' : micWanted ? 'Micro en pause…' : 'Micro coupé · V pour l\'activer'; }
@@ -960,7 +962,7 @@ async function begin(kind){
   try { const r = renderer.domElement.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch (e) {}
   try { AC = AC || new AudioContext(); } catch (e) {}
   me.cls = pickCls; me.name = ($('#nm').value.trim() || 'Sorcier').slice(0, 16); me.since = Date.now(); mode = pickMode;
-  try { localStorage.setItem('incantatio', JSON.stringify({c:me.cls, n:me.name, l:$('#lang').value, e:$('#eng').value})); } catch (e) {}
+  try { localStorage.setItem('incantatio', JSON.stringify({c:me.cls, n:me.name, l:$('#lang').value, e2:$('#eng').value})); } catch (e) {}
   document.documentElement.style.setProperty('--acc', CL[me.cls].col);
   known = [me.cls + ':0']; page = 0; renderBook();
   $('#menu').classList.add('hidden'); $('#hud').classList.remove('hidden');
