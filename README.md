@@ -20,7 +20,7 @@ Les sorts se crient en anglais. La reconnaissance (Moonshine) tourne dans le nav
 
 ## Grimoire
 
-Vous commencez avec **un sort tiré au hasard** dans votre école. Chaque parchemin ajoute **un autre sort au hasard** parmi ceux qui restent ; le grimoire liste vos sorts dans l'ordre où vous les avez appris (touches 1 à 7 = 1er à 7e sort de la liste). **L'incantation tourne** : chaque sort a un cycle de 4 phrases (ex. Blazing Orb : « Blazing Orb », « Molten Globe », « Ember Sun », « Lava Pearl »). Les 4 phrases lancent toutes le sort ; après chaque lancer, le grimoire passe à la suivante : les 4 défilent dans un ordre mélangé, chacune une fois par tour, puis un nouveau tour recommence dans un autre ordre. Chaque phrase a ses 10 premiers essais d'apprentissage, et ce qui est appris reste propre à cette phrase.
+Vous commencez avec **un sort tiré au hasard** dans votre école. Chaque parchemin ajoute **un autre sort au hasard** parmi ceux qui restent ; le grimoire liste vos sorts dans l'ordre où vous les avez appris (touches 1 à 7 = 1er à 7e sort de la liste). **L'incantation tourne** : chaque sort a un cycle de 4 phrases (ex. Blazing Orb : « Blazing Orb », « Molten Globe », « Ember Sun », « Lava Pearl »). Seule la phrase affichée dans le grimoire lance le sort ; après chaque lancer, le grimoire passe à la suivante : les 4 défilent dans un ordre mélangé, chacune une fois par tour, puis un nouveau tour recommence dans un autre ordre. Chaque phrase a ses 10 premiers essais d'apprentissage, et ce qui est appris reste propre à cette phrase.
 
 ## Butin et survie
 

@@ -1792,22 +1792,22 @@ const simil = (a, b) => (a.length || b.length) ? 1 - lev(a, b)/Math.max(a.length
 function scoreFor(text, id){
   const w = norm(text).split(' ').filter(Boolean), sp = spellOf(id); if (!w.length || !sp) return 0;
   let bs = 0;
-  for (const k of [...incAll(id), ...(sp.fr || [])]) { const nk = norm(k), key = nk.replace(/ /g, ''), pk = pho(k), nw = nk.split(' ').length;
+  for (const k of incOf(id) === sp.n ? [sp.n, ...(sp.fr || [])] : [incOf(id)]) { const nk = norm(k), key = nk.replace(/ /g, ''), pk = pho(k), nw = nk.split(' ').length;
     for (let L = 1; L <= nw + 1; L++) for (let i = 0; i + L <= w.length; i++) { const c = w.slice(i, i + L).join(''); bs = Math.max(bs, simil(c, key), simil(pho(c), pk) - .02); if (frAccent()) { const sk = skel(k); if (sk.length >= 3) bs = Math.max(bs, simil(skel(c), sk) - .06); } } }
   return bs;
 }
 /* prononciations apprises : ce que le moteur a réellement écrit quand vous disiez tel sort */
 let learned = {}; try { learned = JSON.parse(localStorage.getItem('incantatio-voix') || '{}') || {}; } catch (e) {}
 function addLearn(id, text){ const t = norm(text); if (!t || t.length < 3 || !spellOf(id)) return false; id = lkey(id); const a = learned[id] = (learned[id] || []).filter(x => x !== t); a.unshift(t); a.length = Math.min(a.length, 16); try { localStorage.setItem('incantatio-voix', JSON.stringify(learned)); } catch (e) {} return true; }
-function learnedScore(text, id){ const t = norm(text).replace(/ /g, ''); let b = 0; for (const x of lkeysAll(id).flatMap(k => learned[k] || [])) { const k = x.replace(/ /g, ''); b = Math.max(b, simil(t, k), t.includes(k) && k.length >= 4 ? .95 : 0); } return b; }
+function learnedScore(text, id){ const t = norm(text).replace(/ /g, ''); let b = 0; for (const x of learned[lkey(id)] || []) { const k = x.replace(/ /g, ''); b = Math.max(b, simil(t, k), t.includes(k) && k.length >= 4 ? .95 : 0); } return b; }
 let lastNear = null, lastFail = null;
 function matchSpell(text, lax){
   let best = null, bs = 0;
   for (const id of known) { const s2 = Math.max(scoreFor(text, id), learnedScore(text, id)); if (s2 > bs) { bs = s2; best = id; } }
   /* un seul mot distinctif suffit (« spirit » quand un seul sort connu le contient) */
   const w = norm(text).split(' ').filter(x => x.length >= 4);
-  for (const id of known) for (const word of incAll(id).flatMap(v => norm(v).split(' '))) {
-    if (word.length < 5 || known.some(o => o !== id && incAll(o).some(v => norm(v).split(' ').includes(word)))) continue;
+  for (const id of known) for (const word of norm(incOf(id)).split(' ')) {
+    if (word.length < 5 || known.some(o => o !== id && norm(incOf(o)).split(' ').includes(word))) continue;
     for (const x of w) { const s3 = Math.max(simil(x, word), simil(pho(x), pho(word))); if (s3 >= .8 && .72 > bs) { bs = .72; best = id; } }
   }
   lastNear = best ? {id:best, s:bs} : null;
