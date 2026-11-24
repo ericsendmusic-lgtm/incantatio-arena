@@ -137,7 +137,7 @@ button{cursor:pointer}
       <label class="field">Nom de sorcier<input id="nm" maxlength="16" autocomplete="off"></label>
       <label class="field">Code pour rejoindre<input id="code" maxlength="8" autocomplete="off" placeholder="ex. k7f2q"></label>
       <label class="field">Reconnaissance vocale<select id="eng"><option value="moonshine">Moonshine (rapide, tous navigateurs)</option><option value="browser">Navigateur (Chrome/Edge)</option></select></label>
-      <input type="hidden" id="lang" value="en-US">
+      <label class="field">Accent<select id="lang"><option value="fr-FR">Accent français</option><option value="en-US">Anglais standard</option></select></label>
       <div class="field">Mode<div class="seg" id="mode"><button data-m="coop" aria-pressed="true">Coop</button><button data-m="pvp" aria-pressed="false">Chacun pour soi</button></div></div>
     </div>
     <div class="row">
@@ -255,7 +255,8 @@ let pickCls = 'fire', pickMode = 'coop';
 try { const s = JSON.parse(localStorage.getItem('incantatio') || '{}'); if (CL[s.c]) pickCls = s.c; if (s.n) $('#nm').value = s.n; } catch (e) {}
 if (!$('#nm').value) $('#nm').value = 'Sorcier' + Math.floor(Math.random()*90+10);
 const QS = new URLSearchParams(location.search); $('#code').value = (QS.get('code') || '').slice(0, 8);
-try { const s2 = JSON.parse(localStorage.getItem('incantatio') || '{}'); } catch (e) {}
+if (!/^fr/i.test(navigator.language || '')) $('#lang').value = 'en-US';
+try { const s2 = JSON.parse(localStorage.getItem('incantatio') || '{}'); if (s2.l2) $('#lang').value = s2.l2; } catch (e) {}
 if (QS.get('code')) $('#note').textContent = 'Invitation reçue : choisissez votre classe puis cliquez sur « Rejoindre ».';
 $('#classes').innerHTML = Object.entries(CL).map(([k,c]) => `<button class="cls" data-c="${k}" style="--c:${c.col}" aria-pressed="${k===pickCls}">${glyph(k)}<b>${c.name}</b><small>${c.spells.length} sorts · départ : ${c.spells[0].n}</small></button>`).join('');
 $('#classes').onclick = e => { const b = e.target.closest('.cls'); if (!b) return; pickCls = b.dataset.c; document.querySelectorAll('.cls').forEach(x => x.setAttribute('aria-pressed', x === b)); };
@@ -387,12 +388,14 @@ function lev(a, b){ const m = a.length, n = b.length; if (!m) return n; if (!n) 
 function pho(t){ let x = norm(t).replace(/ /g, '');
   for (const [a, b] of [[/ph/g,'f'],[/qu/g,'k'],[/ck/g,'k'],[/c(?=[eiy])/g,'s'],[/[cq]/g,'k'],[/x/g,'ks'],[/w/g,'v'],[/y/g,'i'],[/z/g,'s'],[/gh/g,'g'],[/h/g,''],[/(ee|ea|ie)/g,'i'],[/(oo|ou)/g,'u'],[/eau|au/g,'o'],[/j/g,'g'],[/(ai|ay|et|er|ez)$/,'e'],[/(.)\1+/g,'$1'],[/e$/,''],[/[td]$/,'']]) x = x.replace(a, b);
   return x; }
+const skel = x => pho(x).replace(/[aeiou]/g, '').replace(/(.)\1+/g, '$1');
+const frAccent = () => $('#lang').value === 'fr-FR';
 const simil = (a, b) => (a.length || b.length) ? 1 - lev(a, b)/Math.max(a.length, b.length) : 0;
 function scoreFor(text, id){
   const w = norm(text).split(' ').filter(Boolean), sp = spellOf(id); if (!w.length || !sp) return 0;
   let bs = 0;
   for (const k of [sp.n, ...(sp.fr || [])]) { const nk = norm(k), key = nk.replace(/ /g, ''), pk = pho(k), nw = nk.split(' ').length;
-    for (let L = 1; L <= nw + 1; L++) for (let i = 0; i + L <= w.length; i++) { const c = w.slice(i, i + L).join(''); bs = Math.max(bs, simil(c, key), simil(pho(c), pk) - .02); } }
+    for (let L = 1; L <= nw + 1; L++) for (let i = 0; i + L <= w.length; i++) { const c = w.slice(i, i + L).join(''); bs = Math.max(bs, simil(c, key), simil(pho(c), pk) - .02); if (frAccent()) { const sk = skel(k); if (sk.length >= 3) bs = Math.max(bs, simil(skel(c), sk) - .06); } } }
   return bs;
 }
 let lastNear = null;
@@ -406,7 +409,7 @@ function matchSpell(text){
     for (const x of w) { const s3 = Math.max(simil(x, word), simil(pho(x), pho(word))); if (s3 >= .8 && .72 > bs) { bs = .72; best = id; } }
   }
   lastNear = best ? {id:best, s:bs} : null;
-  return bs >= .66 ? {id:best, s:bs} : null;
+  return bs >= (frAccent() ? .62 : .66) ? {id:best, s:bs} : null;
 }
 let pttOn = false, pttText = '', pttCast = false, uttCast = false, micWanted = true, prevPart = null, lastRes = 0; const heard = {n:'', t:-9};
 function onSpeech(raw, final){
@@ -961,7 +964,7 @@ async function begin(kind){
   try { const r = renderer.domElement.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch (e) {}
   try { AC = AC || new AudioContext(); } catch (e) {}
   me.cls = pickCls; me.name = ($('#nm').value.trim() || 'Sorcier').slice(0, 16); me.since = Date.now(); mode = pickMode;
-  try { localStorage.setItem('incantatio', JSON.stringify({c:me.cls, n:me.name, l:$('#lang').value, e2:$('#eng').value})); } catch (e) {}
+  try { localStorage.setItem('incantatio', JSON.stringify({c:me.cls, n:me.name, l2:$('#lang').value, e2:$('#eng').value})); } catch (e) {}
   document.documentElement.style.setProperty('--acc', CL[me.cls].col);
   known = [me.cls + ':0']; page = 0; renderBook();
   $('#menu').classList.add('hidden'); $('#hud').classList.remove('hidden');
