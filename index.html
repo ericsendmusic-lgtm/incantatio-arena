@@ -2523,7 +2523,7 @@ addEventListener('mousedown', e => { if (!playing || e.button !== 2 || !locked()
   if (addLearn(id, lastFail.x)) { toast('« ' + lastFail.x.slice(0, 24) + ' » lancera désormais ' + spellOf(id).n); $('#bkhint').textContent = 'Retenu pour ' + spellOf(id).n + ' !'; bookFlash(); }
   lastFail = null; });
 addEventListener('mousemove', e => { if (!locked()) return; me.yaw -= e.movementX*.0022; me.pitch = clamp(me.pitch - e.movementY*.0022, -1.45, 1.45); });
-addEventListener('wheel', e => { if (!playing) return; page = clamp(page + Math.sign(e.deltaY), 0, CL[me.cls].spells.length-1); renderBook(); }, {passive:true});
+addEventListener('wheel', e => { if (!playing || !e.deltaY) return; const cat = known.filter(k => k.startsWith(me.cls + ':')); if (!cat.length) return; const i = Math.max(0, cat.indexOf(me.cls + ':' + page)), n = (i + Math.sign(e.deltaY) + cat.length) % cat.length; page = +cat[n].split(':')[1]; renderBook(); }, {passive:true});
 $('#bklist').addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if (li) { page = +li.dataset.i; renderBook(); } });
 
 /* ---------- start ---------- */
