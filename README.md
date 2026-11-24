@@ -14,7 +14,7 @@ FPS multijoueur de sorciers : criez vos sorts dans le micro, farmez monstres et 
 | Foudre et Tempête | Chain Lightning, Thunderstrike, Arcane Spark, Stormcaller |
 | Ombre et Nécromancie | Shadow Bolt, Soul Drain, Dark Pact, Necrotic Touch |
 
-Les noms français marchent aussi au micro (« boule de feu », « esprit magique »…).
+Les sorts se crient en anglais. La reconnaissance (Moonshine) tourne dans le navigateur, y compris Firefox, et réagit en une fraction de seconde.
 
 ## Butin
 
@@ -62,9 +62,8 @@ Maximum 3 sorciers par partie. Le mode (Coop ou Chacun pour soi) est celui chois
 ## 3. Bon à savoir
 
 - **Casque conseillé** : sinon le micro capte les voix des autres et peut lancer leurs sorts à ta place.
-- **Langue du micro** : « Anglais » reconnaît mieux les noms de sorts. Si ça accroche, essaie « Français ».
 - **Le créateur fait tourner la partie** (monstres, boss, parchemins). S'il ferme l'onglet, les autres continuent chacun seul.
-- **Firefox** : le chat vocal marche, mais pas la reconnaissance des sorts. Il faut alors les écrire avec **Entrée**.
+- **Premier lancement** : le modèle vocal (environ 30 Mo) se télécharge une seule fois.
 - **Si un ami n'arrive pas à rejoindre** : certains réseaux (école, entreprise, partage 4G) bloquent les connexions directes entre joueurs. Essayez avec un autre réseau.
 - La mise en relation des joueurs passe par le serveur public gratuit de PeerJS. S'il est en panne, réessayez un peu plus tard.
 
