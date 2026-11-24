@@ -1792,22 +1792,22 @@ const simil = (a, b) => (a.length || b.length) ? 1 - lev(a, b)/Math.max(a.length
 function scoreFor(text, id){
   const w = norm(text).split(' ').filter(Boolean), sp = spellOf(id); if (!w.length || !sp) return 0;
   let bs = 0;
-  for (const k of [sp.n, ...(sp.fr || [])]) { const nk = norm(k), key = nk.replace(/ /g, ''), pk = pho(k), nw = nk.split(' ').length;
+  for (const k of incOf(id) === sp.n ? [sp.n, ...(sp.fr || [])] : [incOf(id)]) { const nk = norm(k), key = nk.replace(/ /g, ''), pk = pho(k), nw = nk.split(' ').length;
     for (let L = 1; L <= nw + 1; L++) for (let i = 0; i + L <= w.length; i++) { const c = w.slice(i, i + L).join(''); bs = Math.max(bs, simil(c, key), simil(pho(c), pk) - .02); if (frAccent()) { const sk = skel(k); if (sk.length >= 3) bs = Math.max(bs, simil(skel(c), sk) - .06); } } }
   return bs;
 }
 /* prononciations apprises : ce que le moteur a réellement écrit quand vous disiez tel sort */
 let learned = {}; try { learned = JSON.parse(localStorage.getItem('incantatio-voix') || '{}') || {}; } catch (e) {}
-function addLearn(id, text){ const t = norm(text); if (!t || t.length < 3 || !spellOf(id)) return false; const a = learned[id] = (learned[id] || []).filter(x => x !== t); a.unshift(t); a.length = Math.min(a.length, 16); try { localStorage.setItem('incantatio-voix', JSON.stringify(learned)); } catch (e) {} return true; }
-function learnedScore(text, id){ const t = norm(text).replace(/ /g, ''); let b = 0; for (const x of learned[id] || []) { const k = x.replace(/ /g, ''); b = Math.max(b, simil(t, k), t.includes(k) && k.length >= 4 ? .95 : 0); } return b; }
+function addLearn(id, text){ const t = norm(text); if (!t || t.length < 3 || !spellOf(id)) return false; id = lkey(id); const a = learned[id] = (learned[id] || []).filter(x => x !== t); a.unshift(t); a.length = Math.min(a.length, 16); try { localStorage.setItem('incantatio-voix', JSON.stringify(learned)); } catch (e) {} return true; }
+function learnedScore(text, id){ const t = norm(text).replace(/ /g, ''); let b = 0; for (const x of learned[lkey(id)] || []) { const k = x.replace(/ /g, ''); b = Math.max(b, simil(t, k), t.includes(k) && k.length >= 4 ? .95 : 0); } return b; }
 let lastNear = null, lastFail = null;
 function matchSpell(text, lax){
   let best = null, bs = 0;
   for (const id of known) { const s2 = Math.max(scoreFor(text, id), learnedScore(text, id)); if (s2 > bs) { bs = s2; best = id; } }
   /* un seul mot distinctif suffit (« spirit » quand un seul sort connu le contient) */
   const w = norm(text).split(' ').filter(x => x.length >= 4);
-  for (const id of known) for (const word of norm(spellOf(id).n).split(' ')) {
-    if (word.length < 5 || known.some(o => o !== id && norm(spellOf(o).n).split(' ').includes(word))) continue;
+  for (const id of known) for (const word of norm(incOf(id)).split(' ')) {
+    if (word.length < 5 || known.some(o => o !== id && norm(incOf(o)).split(' ').includes(word))) continue;
     for (const x of w) { const s3 = Math.max(simil(x, word), simil(pho(x), pho(word))); if (s3 >= .8 && .72 > bs) { bs = .72; best = id; } }
   }
   lastNear = best ? {id:best, s:bs} : null;
@@ -1825,7 +1825,7 @@ function onSpeech(raw, final, lax){
   /* apprentissage par sort : les 10 premières incantations du sort ouvert dans le grimoire sont retenues telles que le micro les entend */
   { const curS = me.cls + ':' + page; if (!uttCast && known.includes(curS) && calLeft(curS) > 0 && norm(all).length >= 3) { const m0 = matchSpell(all, lax);
     if (!final) { if (m0 && m0.id === curS && m0.s >= .8) { uttCast = true; calUse(curS); tryCast(curS); } else if (!(m0 && m0.id !== curS && m0.s >= .92)) return; }
-    else if (!(m0 && m0.id !== curS && m0.s >= .9)) { addLearn(curS, all); calUse(curS); const left = calLeft(curS); toast('Appris pour ' + spellOf(curS).n + ' (' + (CAL_N - left) + '/' + CAL_N + ') : « ' + all.slice(0, 26) + ' »' + (left ? '' : ' · apprentissage de ce sort terminé')); uttCast = true; tryCast(curS); uttCast = false; renderBook(); return; } } }
+    else if (!(m0 && m0.id !== curS && m0.s >= .9)) { addLearn(curS, all); calUse(curS); const left = calLeft(curS); toast('Appris pour « ' + incOf(curS) + ' » (' + (CAL_N - left) + '/' + CAL_N + ') : « ' + all.slice(0, 26) + ' »' + (left ? '' : ' · apprentissage de ce sort terminé')); uttCast = true; tryCast(curS); uttCast = false; renderBook(); return; } } }
   if (!uttCast) { const m = matchSpell(all, lax); if (m && heard.n === spellOf(m.id).n && now() - heard.t < 3) { if (final) uttCast = false; return; } const quick = m && (m.s >= .8 || (prevPart && prevPart.id === m.id)); prevPart = m; if (final) prevPart = null; if (m && (final || quick)) { uttCast = true; if (lastFail && now() - lastFail.t < 6 && m.s >= .66 && addLearn(m.id, lastFail.x)) toast('Prononciation retenue pour ' + spellOf(m.id).n); lastFail = null; if (m.s < .8 && final && !lax) addLearn(m.id, all); tryCast(m.id); } else if (final && calib > 0 && all.trim().length > 1) { /* phase d'apprentissage : on lance le sort le plus proche et on retient la phrase */
       const cur = me.cls + ':' + page, id = lastNear && lastNear.s > .25 ? lastNear.id : known.includes(cur) ? cur : known[0];
       addLearn(id, all); calib--; try { localStorage.setItem('incantatio-calib', calib); } catch (e) {}
@@ -2101,20 +2101,42 @@ function renderBook(){
   page = clamp(page, 0, ids.length-1); if (!known.includes(ids[page]) && known.length) page = +known[0].split(':')[1]; const id = ids[page], sp = c.spells[page], has = known.includes(id);
   $('#bkglyph').innerHTML = glyph(me.cls);
   setTimeout(() => { const bm = $('#bkmeta'); bm.textContent = bm.textContent.replace(/ · apprentissage vocal \d+\/\d+/g, '') + (has && calLeft(id) > 0 ? ' · apprentissage vocal ' + (CAL_N - calLeft(id)) + '/' + CAL_N : ''); }, 0);
-  $('#bkname').textContent = has ? sp.n : 'Page scellée';
-  $('#bkhint').textContent = has ? 'Criez : « ' + sp.n + ' »' + '' : 'Trouvez un parchemin pour la déchiffrer';
+  $('#bkname').textContent = has ? incOf(id) : 'Page scellée';
+  $('#bkhint').textContent = has ? (incOf(id) !== sp.n ? 'Sort : ' + sp.n + ' · criez « ' + incOf(id) + ' »' : 'Criez : « ' + sp.n + ' »') : 'Trouvez un parchemin pour la déchiffrer';
   $('#bkmeta').textContent = has ? `${sp.mana} mana · ${sp.cd}s · ${({bolt:'projectile',nova:'onde autour de vous',rain:'pluie au sol visé',wave:'vague frontale',chain:'arc en chaîne'})[sp.k]}` : '';
   const cat = known.filter(k => k.startsWith(me.cls + ':')), sealed = ids.length - cat.length;
-  $('#bklist').innerHTML = cat.map((sid, n) => { const i = +sid.split(':')[1]; return `<li class="${i === page ? 'cur' : ''}" data-i="${i}"><s data-cd="${sid}"></s><span>${n + 1}. ${esc(c.spells[i].n)}</span><em>${c.spells[i].mana}</em></li>`; }).join('') + (sealed ? `<li class="lock"><span>~ ${sealed} page${sealed > 1 ? 's' : ''} scellée${sealed > 1 ? 's' : ''} ~</span></li>` : '');
+  $('#bklist').innerHTML = cat.map((sid, n) => { const i = +sid.split(':')[1]; return `<li class="${i === page ? 'cur' : ''}" data-i="${i}"><s data-cd="${sid}"></s><span>${n + 1}. ${esc(incOf(sid))}</span><em>${c.spells[i].mana}</em></li>`; }).join('') + (sealed ? `<li class="lock"><span>~ ${sealed} page${sealed > 1 ? 's' : ''} scellée${sealed > 1 ? 's' : ''} ~</span></li>` : '');
 }
 function bookFlash(){ const b = $('#book'); b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash'); }
 
 /* ---------- casting ---------- */
 const now = () => performance.now()/1000;
 let calib = 0; /* remplacé par l'apprentissage par sort */
+/* incantations : pour un même sort, la phrase à crier est tirée au hasard quand il entre dans le grimoire */
+const INCV = {
+  'fire:0':['Fireball','Ignis Sphaera','Burning Sphere','Flame Strike'], 'fire:1':['Hellfire','Infernal Blaze','Abyss Flames','Brimstone'],
+  'fire:2':['Blazing Orb','Molten Globe','Ember Sun','Lava Pearl'], 'fire:3':['Solar Flare','Sunburst','Wrath of Sol','Daystar'],
+  'fire:4':['Cinder Storm','Ash Rain','Ember Tempest','Smoldering Sky'], 'fire:5':['Inferno Blast','Dragon Breath','Firewall','Searing Wave'],
+  'fire:6':['Pyroclasm','Volcano Wrath','Meteor Swarm','Armageddon'],
+  'spirit:0':['Magic Spirit','Wisp Seeker','Spectral Hound','Lumen Spiritus'], 'spirit:1':['Arcane Soul','Soul Bloom','Mystic Halo','Anima Lux'],
+  'spirit:2':['Astral Wave','Starlight Tide','Cosmic Rush','Nova Veil'], 'spirit:3':['Phantom Bolt','Ghost Arrow','Wraith Dart','Specter Shot'],
+  'spirit:4':['Spirit Lance','Holy Spear','Radiant Pike','Aether Javelin'], 'spirit:5':['Ethereal Pulse','Aura Burst','Mind Wave','Psychic Ring'],
+  'spirit:6':['Soulfire','Pale Inferno','Requiem Blaze','Eternal Flame'],
+  'ice:0':['Frostbolt','Glacies','Winter Arrow','Frozen Dart'], 'ice:1':['Ice Nova','Blizzard Ring','Hoarfrost','Polar Burst'],
+  'ice:2':['Glacial Spike','Icicle Lance','Crystal Fang','Permafrost'], 'ice:3':['Tidal Wave','Tsunami','Ocean Wrath','Kraken Surge'],
+  'ice:4':['Frozen Orb','Snow Globe','Arctic Sphere','Cold Heart'],
+  'storm:0':['Chain Lightning','Thunder Chain','Fulgur','Arc Storm'], 'storm:1':['Thunderstrike','Zeus Hammer','Sky Fury','Thor Wrath'],
+  'storm:2':['Arcane Spark','Static Shock','Volt Needle','Electro'], 'storm:3':['Stormcaller','Tempestas','Hurricane','Rain of Bolts'],
+  'shadow:0':['Shadow Bolt','Umbra','Dark Arrow','Void Spike'], 'shadow:1':['Soul Drain','Life Leech','Blood Siphon','Sanguis'],
+  'shadow:2':['Dark Pact','Blood Oath','Demon Bargain','Forbidden Rite'], 'shadow:3':['Necrotic Touch','Grave Hand','Plague Grasp','Mortis']};
+let INC_SEL = {};
+const incOf = id => INC_SEL[id] || (spellOf(id) || {}).n || '';
+function pickInc(id){ const v = INCV[id]; INC_SEL[id] = v ? v[Math.floor(Math.random()*v.length)] : (spellOf(id) || {}).n; return INC_SEL[id]; }
+/* ce qu'on a appris pour une incantation ne sert qu'à cette incantation */
+const lkey = id => { const sp = spellOf(id); return !sp || incOf(id) === sp.n ? id : id + '|' + norm(incOf(id)); };
 const CAL_N = 10; let CAL = {}; try { CAL = JSON.parse(localStorage.getItem('incantatio-calib2') || '{}') || {}; } catch (e) { CAL = {}; }
-const calLeft = id => Math.max(0, CAL_N - (CAL[id] || 0));
-function calUse(id){ CAL[id] = (CAL[id] || 0) + 1; try { localStorage.setItem('incantatio-calib2', JSON.stringify(CAL)); } catch (e) {} }
+const calLeft = id => Math.max(0, CAL_N - (CAL[lkey(id)] || 0));
+function calUse(id){ id = lkey(id); CAL[id] = (CAL[id] || 0) + 1; try { localStorage.setItem('incantatio-calib2', JSON.stringify(CAL)); } catch (e) {} }
 function fizzle(){ setTimeout(() => { if (lastFail && now() - lastFail.t < 4.5) $('#bkhint').textContent = 'Raté ? Clic droit : le jeu retient ce mot pour le sort ouvert dans le grimoire.'; }, 1200); $('#bkhint').textContent = lastNear && lastNear.s > .4 ? 'Presque ! « ' + spellOf(lastNear.id).n + ' » à ' + Math.round(lastNear.s*100) + ' %, répétez plus distinctement.' : 'Le sort se dissipe… parlez plus clairement.'; }
 function tryCast(id){
   if (pttOn) pttCast = true;
@@ -2262,7 +2284,7 @@ function grant(t){
   if (t === 'mp') { me.mp = Math.min(me.maxMp, me.mp + 60); toast('Cristal de mana'); return; }
   if (t === 'pw') { me.pwT = 25; toast('Rune de puissance : dégâts ×1,5 pendant 25 s'); puff(me.x, 1, me.z, '#ff6a2a', 14, 4, .7, .8, 2); return; }
   const ids = CL[me.cls].spells.map((_, i) => me.cls + ':' + i), rest = ids.filter(i => !known.includes(i)), next = rest.length ? rest[Math.floor(Math.random()*rest.length)] : null;
-  if (next) { known.push(next); page = +next.split(':')[1]; renderBook(); bookFlash(); banner('Parchemin déchiffré', spellOf(next).n + ' rejoint votre grimoire' + (calLeft(next) > 0 ? ' · vos 10 premières incantations l\'apprendront' : '')); }
+  if (next) { known.push(next); pickInc(next); page = +next.split(':')[1]; renderBook(); bookFlash(); banner('Parchemin déchiffré', spellOf(next).n + ' rejoint votre grimoire · criez « ' + incOf(next) + ' »' + (calLeft(next) > 0 ? ' · vos 10 premières incantations l\'apprendront' : '')); }
   else { me.maxMp += 15; me.mp = me.maxMp; toast('Grimoire complet : mana max +15'); }
 }
 
@@ -2538,7 +2560,7 @@ async function begin(kind){
   me.cls = pickCls; buildStaff(me.cls); me.name = ($('#nm').value.trim() || 'Sorcier').slice(0, 16); me.since = Date.now(); mode = pickMode;
   try { localStorage.setItem('incantatio', JSON.stringify({c:me.cls, n:me.name, l2:$('#lang').value, e2:$('#eng').value})); } catch (e) {}
   document.documentElement.style.setProperty('--acc', CL[me.cls].col);
-  { const n = CL[me.cls].spells.length, i0 = Math.floor(Math.random()*n); known = [me.cls + ':' + i0]; page = i0; } renderBook();
+  { const n = CL[me.cls].spells.length, i0 = Math.floor(Math.random()*n); known = [me.cls + ':' + i0]; page = i0; INC_SEL = {}; pickInc(known[0]); } renderBook();
   $('#menu').classList.add('hidden'); $('#hud').classList.remove('hidden');
   respawn(); me.deaths = 0; hostReady = false; isHost = false; room = null;
   {
