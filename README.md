@@ -16,12 +16,22 @@ FPS multijoueur de sorciers : criez vos sorts dans le micro, farmez monstres et 
 
 Les sorts se crient en anglais. La reconnaissance (Moonshine) tourne dans le navigateur, y compris Firefox, et réagit en une fraction de seconde.
 
-## Butin
+## Butin et survie
 
-- **Parchemin (halo doré)** : débloque le sort suivant de votre classe. Boss : 3 garantis ; brutes : 1 chance sur 3 ; petits monstres : 1 sur 10.
+- **Pas de régénération de vie** : seules les potions soignent. La mana remonte très lentement.
+- **Parchemin (halo doré)** : débloque le sort suivant de votre classe. Rare : boss 1 garanti (parfois 2), ogre 12 %, autres monstres 3,5 %.
 - **Potion (halo vert)** : +45 PV.
 - **Cristal (halo bleu)** : +60 mana.
-- Un boss toutes les 5 vagues : Golem des Ruines, Liche Écarlate, Wyrm des Ombres.
+- **Rune de puissance (halo orange)** : dégâts ×1,5 pendant 25 s.
+
+## Monstres
+
+Diablotin, Araignée des cryptes, Goule, Squelette archer (tire à distance, esquivez !), Slime (se divise), Loup spectral, Ogre.
+Un boss toutes les 5 vagues : Golem des Ruines, Liche Écarlate, Wyrm des Ombres.
+
+## Ambiance
+
+Musique médiévale générée en direct (touche **M** pour la couper), minicarte, chiffres de dégâts. Réglage **Graphismes** (Auto allège le décor si ça saccade).
 
 ## Micro
 
