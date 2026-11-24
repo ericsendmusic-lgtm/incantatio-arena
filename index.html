@@ -2272,7 +2272,8 @@ const WEAK = {
 const WEAK_SEEN = new Set();
 const weakMul = (type, el) => (WEAK[type] && el && WEAK[type][el]) || 1;
 function hurt(m, dmg, f, px, pz, by){
-  const wm = weakMul(m.type, f && f.el); dmg *= wm;
+  const wm = weakMul(m.type, f && f.el); dmg *= wm; dmg = bossDamage(m, dmg);
+  if (dmg <= 0) { dmgNum(m.x, MT[m.type].h + .6, m.z, 0, false, 'res'); if ((by === me.peer || by === 'me') && T - (m.invMsg || -9) > 6) { m.invMsg = T; toast('Corps invulnérable : tranchez les trois têtes !'); } return; }
   if ((by === me.peer || by === 'me') && f && f.el && Math.abs(wm - 1) > .05) { const k = m.type + f.el; if (!WEAK_SEEN.has(k)) { WEAK_SEEN.add(k); toast(MT[m.type].n + (wm > 1 ? ' est faible contre ' : ' résiste à ') + ({fire:'le Feu', ice:'la Glace', storm:'la Foudre', spirit:"l'Esprit", shadow:"l'Ombre"})[f.el] + (wm > 1 ? ' !' : '')); } }
   m.hp -= dmg; m.flash = MT[m.type] && m.g && m.g.userData.noSquash ? .3 : .15; dmgNum(m.x, MT[m.type].h + .6, m.z, dmg, dmg >= 60, wm > 1.05 ? 'weak' : wm < .95 ? 'res' : ''); if (by === me.peer || by === 'me') hitmark();
   if (f) { if (f.slow) m.slowT = Math.max(m.slowT||0, f.slow); if (f.dot) { m.dotT = 3; m.dotD = f.dot*wm; } if (f.push && !MT[m.type].boss) { m.x += px*f.push*.5; m.z += pz*f.push*.5; } }
@@ -2280,7 +2281,7 @@ function hurt(m, dmg, f, px, pz, by){
 }
 function killMon(m){
   if (!mons.has(m.id)) return; const t = MT[m.type];
-  mons.delete(m.id); deathFx(m); W.k++;
+  mons.delete(m.id); deathFx(m); W.k++; bossOnKill(m); if (m.master != null) return;
   const r = Math.random(), tp = m.type === 2 ? .12 : .035;
   if (t.boss) { addDrop('tome', m.x, m.z); if (Math.random() < .4) addDrop('tome', m.x + 1.6, m.z); addDrop('hp', m.x - 1.6, m.z + 1.6); addDrop('mp', m.x + 1.6, m.z + 1.6); addDrop('pw', m.x, m.z - 2); }
   else if (r < tp) addDrop('tome', m.x, m.z);
@@ -2324,7 +2325,7 @@ function startWave(){
   W.w++; W.st = 'fight'; W.q = []; const np = Math.max(1, players().length); /* apparition plus douce : moins de monstres, adaptée au nombre de joueurs */
   const n = Math.round((3 + W.w*2)*(1 + .5*(np - 1)));
   for (let i = 0; i < n; i++) W.q.push(pickType(W.w));
-  if (W.w % 5 === 0) W.q.unshift(3 + ((W.w/5 - 1) % 3));
+  if (W.w % 5 === 0) W.q = [3 + ((W.w/5 - 1) % 3)]; /* vague de boss : le boss vient seul avec ses propres troupes */
   W.spT = 0;
 }
 function spawnMon(type){
@@ -2332,6 +2333,7 @@ function spawnMon(type){
   const mx = MT[type].hp * (1 + .12*(W.w-1)) * (.6 + .4*np);
   const m = {id:W.nid++, type, x:Math.cos(a)*46, z:Math.sin(a)*46, hp:mx, max:Math.round(mx), atk:0, a:0, slowT:0, dotT:0, sk:4};
   m.tx = m.x; m.tz = m.z; m.g = monsterMesh(type); mons.set(m.id, m);
+  if (MT[type].boss) bossSpawned(m);
 }
 function hostStep(dt){
   if (W.st === 'over') { W.overT -= dt; if (W.overT <= 0) { for (const m of mons.values()) scene.remove(m.g); mons.clear(); W.w = 0; W.st = 'break'; W.t = 6; } return; }
@@ -2345,17 +2347,20 @@ function hostStep(dt){
     if (m.dotT > 0) { m.dotT -= dt; m.hp -= m.dotD*dt; if (m.hp <= 0) { killMon(m); continue; } }
     m.slowT = Math.max(0, m.slowT - dt); m.a = Math.max(0, m.a - dt);
     if (!tg) continue;
+    const bm = (t.boss || t.head) ? bossStep(m, t, tg, bd, P, dt) : 0; if (bm === 'skip') continue;
     const sp = t.spd * .7 /* monstres ralentis de 30 % */ * (m.slowT > 0 ? .45 : 1);
     const rg = t.ranged, shoot = rg && bd < rg.max && bd > rg.min;
     if (shoot) { m.rk = (m.rk ?? 1) - dt; if (m.rk <= 0) { m.rk = rg.cd; m.a = .5; const fl = bd/24; W.arrows.push({t:fl, peer:tg.peer, x:tg.x, z:tg.z, dmg:rg.dmg}); W.hits.push(['arrow', m.id, tg.peer]); arrowFx(m, tg.peer); } }
+    else if (m.type === 4) { if (bm) { m.x += (tg.x-m.x)/bd*sp*dt*bm; m.z += (tg.z-m.z)/bd*sp*dt*bm; } }
     else if (bd > t.reach*.85) { m.x += (tg.x-m.x)/bd*sp*dt; m.z += (tg.z-m.z)/bd*sp*dt; }
     m.atk -= dt;
     if (bd < t.reach && m.atk <= 0) { m.atk = t.cd; m.a = .35; hitPlayer(tg.peer, t.dmg); }
-    if (t.boss) { m.sk -= dt; if (m.sk <= 0) { m.sk = 6; m.a = .6; for (const p of P) if (Math.hypot(p.x-m.x, p.z-m.z) < 8) hitPlayer(p.peer, 22); W.hits.push(['slam', m.id]); slamFx(m); if (mons.size < 38) for (let i = 0; i < 2; i++) { spawnMon(0); const n = [...mons.values()].pop(); n.x = m.x + (Math.random()-.5)*6; n.z = m.z + (Math.random()-.5)*6; } } }
+    if (t.boss && m.type !== 4) { m.sk -= dt; if (m.sk <= 0) { m.sk = 6; m.a = .6; for (const p of P) if (Math.hypot(p.x-m.x, p.z-m.z) < 8) hitPlayer(p.peer, 22); W.hits.push(['slam', m.id]); slamFx(m); } }
   }
   for (let i = W.arrows.length - 1; i >= 0; i--) { const ar = W.arrows[i]; ar.t -= dt; if (ar.t > 0) continue; W.arrows.splice(i, 1); const pl = P.find(p => p.peer === ar.peer); if (pl && Math.hypot(pl.x - ar.x, pl.z - ar.z) < 1.4) hitPlayer(ar.peer, ar.dmg); }
+  bossResolve(P, dt);
   const arr = [...mons.values()];
-  for (let i = 0; i < arr.length; i++) { const a = arr[i], ra = MT[a.type].r; for (let j = i+1; j < arr.length; j++) { const b = arr[j], rr = ra + MT[b.type].r, dx = b.x-a.x, dz = b.z-a.z, d = Math.hypot(dx, dz); if (d < rr && d > 0) { const k = (rr-d)/2/d; a.x -= dx*k; a.z -= dz*k; b.x += dx*k; b.z += dz*k; } } collide(a, ra, 60); a.tx = a.x; a.tz = a.z; }
+  for (let i = 0; i < arr.length; i++) { const a = arr[i], ra = MT[a.type].r; for (let j = i+1; j < arr.length; j++) { const b = arr[j], rr = ra + MT[b.type].r, dx = b.x-a.x, dz = b.z-a.z, d = Math.hypot(dx, dz); if (d < rr && d > 0 && !MT[a.type].head && !MT[b.type].head) { const k = (rr-d)/2/d; a.x -= dx*k; a.z -= dz*k; b.x += dx*k; b.z += dz*k; } } collide(a, ra, 60); a.tx = a.x; a.tz = a.z; }
   for (const [id, d] of drops) { d.age += dt; if (d.age > 60) { scene.remove(d.g); drops.delete(id); } }
   W.emitT -= dt;
   if (room && W.emitT <= 0) { W.emitT = .1;
@@ -2364,6 +2369,259 @@ function hostStep(dt){
   else if (!room) W.hits.length = 0;
 }
 function hitPlayer(peer, dmg){ if (peer === me.peer || peer === 'me') takeDamage(dmg, null); else W.hits.push([peer, dmg]); }
+/* ===================== BOSS : mécaniques et modèles texturés ===================== */
+/* --- textures PBR des boss (tex/boss_*.jpg) --- */
+const BTX = {};
+function btx(n, rx, ry, e){ const k = n + rx + '_' + ry; if (BTX[k]) return BTX[k];
+  const L = (nm, srgb) => { const t = LT(nm, 1, srgb); t.repeat.set(rx, ry); return t; };
+  const o = {map:L(n, true), normal:L(n + '_n', false), rough:L(n + '_r', false)}; if (e) o.em = L(n + '_e', true); TEX2R.set(o.map, o.rough); return BTX[k] = o; }
+function bmat(n, rx, ry, opt){ opt = opt || {}; const T = btx(n, rx, ry, opt.e);
+  const m = new (opt.phys ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial)({color:opt.c == null ? 0xffffff : opt.c, map:T.map, normalMap:T.normal, roughnessMap:T.rough, roughness:opt.r == null ? 1 : opt.r, metalness:opt.m || 0, side:opt.side || THREE.FrontSide});
+  m.normalScale.set(opt.ns || 1.4, opt.ns || 1.4); if (T.em) { m.emissive = new THREE.Color(0xffffff); m.emissiveMap = T.em; m.emissiveIntensity = opt.ei || 1.5; } if (opt.phys) { m.clearcoat = opt.cc || .5; m.clearcoatRoughness = .3; } if (opt.rim) addRim(m, opt.rim); return m; }
+
+/* --- nouvelles entités : les trois têtes du Wyrm --- */
+MT.push({n:'Tête de feu', hp:620, spd:3, dmg:0, r:1.15, h:5.6, reach:0, cd:9, head:'fire'},
+        {n:'Tête de glace', hp:620, spd:3, dmg:0, r:1.15, h:5.6, reach:0, cd:9, head:'ice'},
+        {n:"Tête d'ombre", hp:620, spd:3, dmg:0, r:1.15, h:5.6, reach:0, cd:9, head:'shadow'});
+MT[3].r = 2.4; MT[4].h = 6.6; MT[5].r = 2.1;
+Object.assign(WEAK, {11:{ice:2, spirit:1.2, fire:.3}, 12:{fire:2, storm:1.2, ice:.3}, 13:{spirit:2, fire:1.2, shadow:.3}});
+const HEAD_OFS = {11:[-2.3, 1.7], 12:[0, 2.7], 13:[2.3, 1.7]};
+const HEAD_COL = {11:0xff6a1a, 12:0x7fdcff, 13:0x7dff9c}, HEAD_EL = {11:'fire', 12:'ice', 13:'shadow'};
+
+/* --- messages envoyés aux autres joueurs --- */
+function bossMsg(t){ toast(t); W.hits.push(['msg', String(t).slice(0, 90)]); }
+
+/* --- apparition : le boss vient seul, avec ses propres troupes --- */
+function bossSpawned(m){
+  if (m.type === 4) { m.minions = []; m.resQ = []; m.resT = 4; m.rk = 2.5; m.shield = 0; for (let i = 0; i < 4; i++) summonMinion(m, i % 2 ? 1 : 6, null); bossMsg('La Liche Écarlate invoque sa garde : tant que 3 serviteurs vivent, un bouclier d\'âmes la protège'); }
+  if (m.type === 5) { m.heads = []; m.lost = []; m.regT = 0; m.face = 0; for (const ht of [11, 12, 13]) spawnHead(m, ht, 1); bossMsg('Le Wyrm aux trois têtes ! Tranchez les trois têtes en moins de 25 s, sinon elles repoussent'); }
+  if (m.type === 3) { m.rt = 3; bossMsg('Le Golem des Ruines lance des rochers : sortez des cercles rouges !'); }
+}
+function summonMinion(L, type, at){ if (mons.size >= 40) return; spawnMon(type); const n = [...mons.values()].pop(); const a = Math.random()*6.28; n.x = at ? at[0] : L.x + Math.cos(a)*4; n.z = at ? at[1] : L.z + Math.sin(a)*4; n.tx = n.x; n.tz = n.z; n.master = L.id; n.mtype = type; L.minions.push(n.id); }
+function spawnHead(B, ht, hpk){ spawnMon(ht); const h = [...mons.values()].pop(); h.parent = B.id; h.hp = h.max*hpk; h.bk = 1 + (ht - 11)*1.6; placeHead(B, h); B.heads.push(h.id); }
+function placeHead(B, h){ const o = HEAD_OFS[h.type], c = Math.cos(B.face || 0), s = Math.sin(B.face || 0); h.x = B.x + o[0]*c + o[1]*s; h.z = B.z - o[0]*s + o[1]*c; h.tx = h.x; h.tz = h.z; }
+
+/* --- dégâts différés (rochers, orbes, souffles) : esquivables --- */
+W.rocks = []; W.cones = [];
+function bossStep(m, t, tg, bd, P, dt){
+  if (m.type === 3) { /* GOLEM : lance des rochers sur un joueur au hasard */
+    m.rt -= dt; if (m.rt <= 0 && P.length) { const low = m.hp < m.max*.5; m.rt = low ? 2.4 : 3.4; m.a = .6;
+      const tp = P[Math.floor(Math.random()*P.length)];
+      const n = low ? 3 : 1; for (let i = 0; i < n; i++) { const ox = i ? (Math.random() - .5)*7 : 0, oz = i ? (Math.random() - .5)*7 : 0, x = tp.x + ox, z = tp.z + oz, fl = 1.5 + i*.25;
+        W.rocks.push({t:fl, x, z, r:2.6, dmg:20}); W.hits.push(['rock', m.id, r2(x), r2(z), fl]); rockFx(m, x, z, fl); } } }
+  if (m.type === 4) { /* LICHE : vole à distance, garde 4 serviteurs, ressuscite les morts, orbes d'âme */
+    m.minions = m.minions.filter(id => mons.has(id)); const alive = m.minions.length, sh = alive >= 3 ? 1 : 0;
+    if (sh !== m.shield) { m.shield = sh; W.hits.push(['shield', m.id, sh]); setShield(m, sh); if (!sh) bossMsg('Le bouclier d\'âmes de la Liche se brise : frappez-la !'); }
+    m.resT -= dt; if (m.resQ.length && m.resT <= 0) { m.resT = 5.5; const q = m.resQ.shift(); W.hits.push(['res', m.id, r2(q[0]), r2(q[1])]); resFx(m, q[0], q[1]); m.a = .6; m.pend = (m.pend || []); m.pend.push({t:1.6, type:q[2], x:q[0], z:q[1]}); }
+    if (m.pend) for (let i = m.pend.length - 1; i >= 0; i--) { const p = m.pend[i]; p.t -= dt; if (p.t <= 0) { m.pend.splice(i, 1); summonMinion(m, p.type, [p.x, p.z]); } }
+    m.rk -= dt; if (m.rk <= 0 && P.length) { m.rk = 3; m.a = .5; const tp = P[Math.floor(Math.random()*P.length)], fl = 1.2; W.rocks.push({t:fl, x:tp.x, z:tp.z, r:2, dmg:14}); W.hits.push(['soul', m.id, r2(tp.x), r2(tp.z), fl]); soulFx(m, tp.x, tp.z, fl); }
+    return bd < 10 ? -1 : bd > 17 ? 1 : 0; }
+  if (m.type === 5) { /* WYRM : le corps est invulnérable tant qu'une tête vit ; les têtes repoussent */
+    if (tg) m.face = Math.atan2(tg.x - m.x, tg.z - m.z);
+    m.heads = m.heads.filter(id => mons.has(id)); for (const id of m.heads) placeHead(m, mons.get(id));
+    if (m.lost.length) { m.regT -= dt; if (m.regT <= 0) { const n = m.lost.length; for (const ht of m.lost) spawnHead(m, ht, .6); m.lost = []; W.hits.push(['regrow', m.id]); bossMsg(n > 1 ? n + ' têtes repoussent !' : 'La tête repousse !'); } } }
+  if (t.head) { /* TÊTE : souffle élémentaire en cône, annoncé au sol */
+    m.bk -= dt; if (m.bk <= 0 && tg && bd < 17) { m.bk = 4.6; m.a = .9; const ang = Math.atan2(tg.x - m.x, tg.z - m.z), fl = 1;
+      W.cones.push({t:fl, x:m.x, z:m.z, ang, len:12, half:.42, dmg:18}); W.hits.push(['breath', m.id, +ang.toFixed(3), fl]); breathFx(m, ang, fl); }
+    return 'skip'; }
+  return 0;
+}
+function bossResolve(P, dt){
+  for (let i = W.rocks.length - 1; i >= 0; i--) { const r = W.rocks[i]; r.t -= dt; if (r.t > 0) continue; W.rocks.splice(i, 1); for (const p of P) if (Math.hypot(p.x - r.x, p.z - r.z) < r.r) hitPlayer(p.peer, r.dmg); }
+  for (let i = W.cones.length - 1; i >= 0; i--) { const c = W.cones[i]; c.t -= dt; if (c.t > 0) continue; W.cones.splice(i, 1);
+    for (const p of P) { const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz); if (d > c.len || d < .1) continue; let da = Math.atan2(dx, dz) - c.ang; da = Math.atan2(Math.sin(da), Math.cos(da)); if (Math.abs(da) < c.half) hitPlayer(p.peer, c.dmg); } } }
+/* mort d'un serviteur / d'une tête */
+function bossOnKill(m){
+  if (m.master != null) { const L = mons.get(m.master); if (L) L.resQ.push([m.x, m.z, m.mtype]); }
+  if (m.parent != null) { const B = mons.get(m.parent); if (B) { B.heads = B.heads.filter(id => id !== m.id && mons.has(id)); B.lost.push(m.type);
+      if (!B.heads.length) { bossMsg('Les trois têtes sont tombées : le Wyrm s\'effondre !'); B.lost = []; killMon(B); }
+      else { if (B.lost.length === 1) B.regT = 25; bossMsg(MT[m.type].n + ' tranchée ! Encore ' + B.heads.length + ' — ' + Math.ceil(B.regT) + ' s avant qu\'elles repoussent'); } } }
+  if (m.type === 4) for (const id of m.minions || []) { const n = mons.get(id); if (n) { n.master = null; killMon(n); } }
+  if (m.type === 5) for (const id of m.heads || []) { const n = mons.get(id); if (n) { n.parent = null; killMon(n); } }
+}
+/* bouclier de la Liche, corps du Wyrm invulnérable */
+function bossDamage(m, dmg){
+  if (m.type === 4 && m.shield) return dmg*.25;
+  if (m.type === 5 && m.heads && m.heads.some(id => mons.has(id))) return 0;
+  return dmg;
+}
+/* effets reçus de l'hôte */
+function bossHit(h){
+  const m = mons.get(h[1]);
+  if (h[0] === 'msg' && typeof h[1] === 'string') toast(h[1]);
+  else if (h[0] === 'rock' && m && fin(h[2]) && fin(h[3])) rockFx(m, h[2], h[3], clamp(+h[4] || 1.5, .3, 3));
+  else if (h[0] === 'soul' && m && fin(h[2]) && fin(h[3])) soulFx(m, h[2], h[3], clamp(+h[4] || 1.2, .3, 3));
+  else if (h[0] === 'breath' && m && fin(h[2])) breathFx(m, h[2], clamp(+h[3] || 1, .3, 3));
+  else if (h[0] === 'res' && m && fin(h[2]) && fin(h[3])) resFx(m, h[2], h[3]);
+  else if (h[0] === 'shield' && m) setShield(m, !!h[2]);
+  else if (h[0] === 'regrow' && m) { puff(m.x, 4, m.z, '#b07dff', 40, 6, 1.2, .8, 2); flash(m.x, 4, m.z, '#b07dff', 6, .5); }
+}
+function setShield(m, on){ m.shield = on ? 1 : 0; if (m.g) m.g.userData.shield = !!on; }
+
+/* --- visuels des attaques --- */
+const warnMat = c => new THREE.MeshBasicMaterial({color:c, transparent:true, opacity:.0, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:-8});
+function warnRing(x, z, r, col, fl){ const g = new THREE.Group(); g.position.set(x, .2, z); scene.add(g);
+  const disc = new THREE.Mesh(geo('bwDisc', () => new THREE.CircleGeometry(1, 40).rotateX(-Math.PI/2)), warnMat(col)); disc.scale.setScalar(r); disc.renderOrder = 5; g.add(disc);
+  const ring = new THREE.Mesh(geo('bwRing', () => new THREE.RingGeometry(.92, 1, 48).rotateX(-Math.PI/2)), warnMat(col)); ring.scale.setScalar(r); ring.renderOrder = 5; g.add(ring);
+  const fill = new THREE.Mesh(geo('bwDisc', null), warnMat(col)); fill.renderOrder = 5; fill.position.y = .01; g.add(fill);
+  fx.push({t:0, dur:fl, upd:k => { disc.material.opacity = .18 + Math.sin(k*30)*.05; ring.material.opacity = .9; fill.scale.setScalar(r*k); fill.material.opacity = .35; }, end:() => { scene.remove(g); [disc, ring, fill].forEach(o => o.material.dispose()); }}); }
+function rockFx(m, x, z, fl){ warnRing(x, z, 2.6, 0xff3a1a, fl);
+  const rock = new THREE.Mesh(geo('bRock', () => organic(new THREE.DodecahedronGeometry(.75, 2), .12, 1.6, 4)), smat('bRockM', () => bmat('boss_golem', 1, 1, {e:1, ei:1.2, ns:1.6}))); rock.castShadow = true; scene.add(rock);
+  const sx = m.x, sz = m.z, sy = 7.5; sfx('boom', .25);
+  fx.push({t:0, dur:fl, upd:k => { rock.position.set(sx + (x - sx)*k, sy + (0 - sy)*k + Math.sin(k*Math.PI)*7, sz + (z - sz)*k); rock.rotation.x += .15; rock.rotation.z += .1; },
+    end:() => { scene.remove(rock); puff(x, .4, z, '#8a7a66', 30, 9, 1.3, .9, 1.5); puff(x, .4, z, '#ff8a3a', 12, 7, .5, .5, 2); shockwave(x, .2, z, 3.4, '#ff6a2a', .5); decal(x, z, 2.2, 'scorch', 5); flash(x, 1, z, '#ff7a3a', 4, .3);
+      const dd = Math.hypot(x - me.x, z - me.z); if (dd < 12) shake = Math.min(1, shake + (1 - dd/12)*.6); sfx('boom', .6); }}); }
+function soulFx(m, x, z, fl){ warnRing(x, z, 2, 0x3dff9a, fl);
+  const orb = spellVisual('shadow', .45, '#5aff9c'); scene.add(orb.mesh); const sx = m.x, sz = m.z, sy = 6.2;
+  fx.push({t:0, dur:fl, upd:k => { orb.mesh.position.set(sx + (x - sx)*k, sy + (.6 - sy)*k + Math.sin(k*Math.PI)*2.5, sz + (z - sz)*k); orb.upd(1/60, {v:new THREE.Vector3(x - sx, -3, z - sz)}); },
+    end:() => { scene.remove(orb.mesh); impactFx(x, .3, z, 'shadow', '#5aff9c', false); }}); }
+function breathFx(m, ang, fl){ const col = HEAD_COL[m.type] || 0xff6a1a, el = HEAD_EL[m.type] || 'fire', cs = '#' + new THREE.Color(col).getHexString();
+  const cone = new THREE.Mesh(geo('bCone', () => new THREE.CircleGeometry(12, 32, Math.PI/2 - .42, .84).rotateX(-Math.PI/2)), warnMat(0xff3a1a)); cone.position.set(m.x, .21, m.z); cone.rotation.y = ang + Math.PI; cone.renderOrder = 5; scene.add(cone);
+  fx.push({t:0, dur:fl, upd:k => { cone.material.opacity = .14 + k*.22 + Math.sin(k*28)*.05; }, end:() => { scene.remove(cone); cone.material.dispose();
+    const sx = Math.sin(ang), sz = Math.cos(ang); flash(m.x + sx*3, 3, m.z + sz*3, cs, 6, .6);
+    fx.push({t:0, dur:.7, upd:k => { for (let i = 0; i < 6; i++) { const d = 1.5 + Math.random()*11*Math.min(1, k*2.2), sp = (Math.random() - .5)*.84*d/12*1.6, px = m.x + sx*d + Math.cos(ang)*sp*d*.6, pz = m.z + sz*d - Math.sin(ang)*sp*d*.6, py = Math.max(.4, 4.2 - d*.35);
+        puff(px, py, pz, Math.random() < .4 ? '#ffffff' : cs, 1, 2, .9 + d*.08, .5, el === 'fire' ? 1.5 : .2); }
+      if (el === 'ice' && Math.random() < .3) iceSpikes(m.x + sx*(3 + Math.random()*8), m.z + sz*(3 + Math.random()*8), 1.2, 1);
+      if (el === 'shadow' && Math.random() < .12) groundTentacles(m.x + sx*(3 + Math.random()*8), m.z + sz*(3 + Math.random()*8), cs, 1); }, end:() => {}});
+    if (el === 'fire') decal(m.x + sx*6, m.z + sz*6, 4, 'scorch', 4); else if (el === 'ice') decal(m.x + sx*6, m.z + sz*6, 4, 'frost', 4); else decal(m.x + sx*6, m.z + sz*6, 4, 'necro', 4); }}); }
+function resFx(m, x, z){ const beam = new THREE.Mesh(geo('bResB', () => new THREE.CylinderGeometry(.42, .2, 16, 28, 1, true).translate(0, 8, 0)), beamMat(0x5aff9c)); beam.position.set(x, .2, z); scene.add(beam);
+  warnRing(x, z, 1.4, 0x5aff9c, 1.6); lightning([new THREE.Vector3(m.x, 6, m.z), new THREE.Vector3(x, 1, z)], '#5aff9c', .5, .06, .03);
+  fx.push({t:0, dur:1.6, upd:k => { beam.scale.set(1 + k, 1, 1 + k); if (Math.random() < .5) puff(x + (Math.random() - .5)*1.4, .3, z + (Math.random() - .5)*1.4, '#5aff9c', 1, .5, .4, 1, 3); }, end:() => { scene.remove(beam); puff(x, 1, z, '#5aff9c', 30, 6, 1, .7, 1); }}); }
+
+/* ===================== MODÈLES DES BOSS ===================== */
+/* GOLEM DES RUINES : basalte sculpté, veines de lave, cœur de magma */
+ORGB[3] = (g, body) => {
+  g.userData.noSquash = true; const rock = smat('bgRock', () => bmat('boss_golem', 1.4, 1.4, {e:1, ei:1.6, ns:1.8})), core = hotMat(0xff7a1a, 3.2);
+  const R = (k, r, sd) => geo('bg_' + k, () => organic(new THREE.DodecahedronGeometry(r, 2), r*.13, 1.3/r, sd));
+  const add = (k, r, sd, p, x, y, z, sh) => { const o = new THREE.Mesh(R(k, r, sd), rock); o.position.set(x, y, z); o.castShadow = !!sh; p.add(o); return o; };
+  const hip = grp(body, 0, 0, 0); add('pv', 1, 1, hip, 0, 2.1, 0, 1).scale.set(1.35, .8, 1);
+  const torso = grp(hip, 0, 2.3, 0); add('ch', 1.9, 2, torso, 0, 1.4, 0, 1).scale.set(1.15, 1.05, .85);
+  for (let i = 0; i < 5; i++) { const a = -1 + i*.5; add('rb' + i, .5, 10 + i, torso, Math.sin(a)*1.05, 1.4 + Math.cos(a*2)*.6, 1.45).scale.set(.7, .5, .45); }
+  const cr = new THREE.Mesh(geo('bg_core', () => new THREE.IcosahedronGeometry(.48, 2)), core); cr.position.set(0, 1.45, 1.45); torso.add(cr); const cg = new THREE.Sprite(glowSprite(0xff6a1a, .9)); cg.scale.setScalar(3); cg.position.copy(cr.position); torso.add(cg);
+  const head = grp(torso, 0, 3.15, .55); add('hd', .82, 3, head, 0, 0, 0, 1).scale.set(1.05, .9, 1); add('br', .5, 4, head, 0, .28, .45).scale.set(1.6, .45, .6);
+  [-1, 1].forEach(s => eyeGlow(head, s*.3, .02, .72, 0xffa03a, .11, .9, 3));
+  [-1, 1].forEach(s => add('sh', .9, 5, torso, s*2.05, 2.3, 0, 1));
+  const arms = [-1, 1].map(s => { const sh = grp(torso, s*2.2, 2.2, 0); add('ua', .72, 6, sh, 0, -.9, 0, 1).scale.set(1, 1.5, 1);
+    const el = grp(sh, 0, -1.7, 0); add('fa', .8, 7, el, 0, -.9, .1, 1).scale.set(1, 1.4, 1); add('fs', .78, 8, el, 0, -1.95, .2, 1); return {sh, el}; });
+  const legs = [-1, 1].map(s => { const hp = grp(hip, s*1.0, 2.0, 0); add('th', .72, 9, hp, 0, -.5, 0, 1).scale.set(1, 1.25, 1);
+    const kn = grp(hp, 0, -1.05, 0); add('sn', .66, 11, kn, 0, -.4, 0).scale.set(1, 1.3, 1); add('ft', .7, 12, kn, 0, -.85, .2).scale.set(1.2, .45, 1.4); return {hp, kn}; });
+  for (let i = 0; i < 6; i++) { const c = new THREE.Mesh(geo('bg_cr', () => new THREE.OctahedronGeometry(.3).scale(.6, 1.9, .6)), hotMat(0x6ff2ff, 2)); c.position.set((i - 2.5)*.42, 2.6 - Math.abs(i - 2.5)*.18, -1.45); c.rotation.set(-.6, 0, (i - 2.5)*.22); torso.add(c); }
+  const orbit = grp(body, 0, 3.6, 0); for (let i = 0; i < 5; i++) { const o = add('or' + i, .32, 20 + i, orbit, Math.cos(i*1.256)*3.4, Math.sin(i*2)*.5, Math.sin(i*1.256)*3.4); o.scale.set(1, 1.4, .6); }
+  const sm = smooth3();
+  return (k, mv0, at0, hu) => { sm.s(mv0, at0, hu); const mv = sm.mv, at = sm.at, hit = sm.hu, w = Math.sin(k*2.6)*mv;
+    legs[0].hp.rotation.x = w*.45; legs[1].hp.rotation.x = -w*.45; legs.forEach((L, i) => L.kn.rotation.x = Math.max(0, (i ? w : -w))*.6);
+    hip.position.y = Math.abs(Math.cos(k*2.6))*.12*mv; torso.rotation.set(.06 + at*.25 - hit*.15, Math.sin(k*1.3)*.08, Math.sin(k*2.6)*.04*mv);
+    arms[0].sh.rotation.x = -w*.35 - at*2.7; arms[1].sh.rotation.x = w*.35 - at*2.1; arms.forEach(A => A.el.rotation.x = -.3 - at*.6);
+    head.rotation.set(-at*.2, Math.sin(k*.7)*.3, 0); orbit.rotation.y = k*.8;
+    rock.emissiveIntensity = 1.2 + Math.sin(k*2.2)*.5 + at*1.2; cg.scale.setScalar(2.6 + Math.sin(k*3)*.3 + at*1.5); };
+};
+
+/* LICHE ÉCARLATE : vole, robe brodée de runes, couronne, bâton, bouclier d'âmes */
+ORGB[4] = (g, body) => {
+  g.userData.noSquash = true;
+  const U = {uT:SPU.uT};
+  const robe = bmat('boss_lich', 3, 1, {e:1, ei:1.2, ns:1.2, side:THREE.DoubleSide, rim:.3});
+  const prev = robe.onBeforeCompile; robe.onBeforeCompile = (sh, r) => { if (prev) prev(sh, r); sh.uniforms.uT = U.uT;
+    sh.vertexShader = 'uniform float uT;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      { float hm = pow(clamp(1. - position.y/3.6, 0., 1.), 2.); float an = atan(position.z, position.x); transformed.xz += normalize(position.xz + .0001)*sin(uT*2.2 + an*5. + position.y*2.)*.12*hm; transformed.y += sin(uT*3. + an*7.)*.06*hm; }`); };
+  const bone = smat('bBone', () => bmat('boss_bone', 1, 1, {ns:1.5, r:1, rim:.3})), gold = smat('lbGold', () => pbr({c:0xd8b25a, d:'metal', r:.22, m:1, ns:.6}));
+  const blk = smat('blk', () => new THREE.MeshBasicMaterial({color:0x040303}));
+  const fly = grp(body, 0, 1.6, 0);
+  const rb = new THREE.Mesh(geo('bl_robe', () => { const pr = [[1.3, 0], [1.15, .5], [.92, 1.5], [.68, 2.5], [.56, 3.15], [.62, 3.45], [.001, 3.62]].map(([r, y]) => new THREE.Vector2(r, y)); const lg = organic(new THREE.LatheGeometry(pr, 48), .03, 3, 6, v => { const an = Math.atan2(v.z, v.x); return Math.sin(an*11 + v.y)*.045*(1.3 - v.y/3.6); }), p = lg.attributes.position;
+    for (let i = 0; i < p.count; i++) if (p.getY(i) < .05) p.setY(i, p.getY(i) + (hh3(Math.round(Math.atan2(p.getZ(i), p.getX(i))*10), 3, 1) - .2)*.45); lg.computeVertexNormals(); return lg; }), robe); rb.castShadow = true; fly.add(rb);
+  /* épaulières d'os à pointes */
+  [-1, 1].forEach(s => { const p = new THREE.Mesh(geo('bl_pd', () => organic(new THREE.SphereGeometry(.42, 18, 10, 0, Math.PI*2, 0, Math.PI*.55), .03, 6, 2)), bone); p.position.set(s*.72, 3.35, 0); p.rotation.z = -s*.4; fly.add(p);
+    for (let i = 0; i < 3; i++) { const sp = new THREE.Mesh(geo('bl_sp', () => ptube([[0, 0, 0], [0, .25, -.05], [0, .5, -.18]], .07, .005, 10, 6)), bone); sp.position.set(s*(.75 + i*.08), 3.6, -.15 + i*.15); sp.rotation.z = -s*(.5 + i*.15); fly.add(sp); } });
+  /* crâne couronné */
+  const head = grp(fly, 0, 3.95, .05);
+  const cran = new THREE.Mesh(geo('bl_cr', () => organic(new THREE.SphereGeometry(.38, 32, 24), .015, 7, 3, (v, n) => (n.z > .55 && v.y < .08 && v.y > -.15 ? -.05 : 0))), bone); cran.scale.set(.9, 1, 1.08); head.add(cran);
+  const mx = new THREE.Mesh(geo('bl_mx', () => organic(new THREE.SphereGeometry(.22, 20, 14), .01, 10, 4)), bone); mx.scale.set(1, .7, .9); mx.position.set(0, -.12, .2); head.add(mx);
+  [-1, 1].forEach(s => { const so = new THREE.Mesh(geo('bl_so', () => new THREE.SphereGeometry(.1, 14, 10)), blk); so.position.set(s*.13, .04, .29); head.add(so); eyeGlow(head, s*.13, .04, .37, 0xff2a3a, .04, .7, 3.5); });
+  const jaw = grp(head, 0, -.2, .05); const jm = new THREE.Mesh(geo('bl_jw', () => ptube([[-.2, .05, -.05], [-.18, -.08, .14], [0, -.12, .26], [.18, -.08, .14], [.2, .05, -.05]], .045, .045, 20, 8, .006, 20)), bone); jaw.add(jm);
+  for (let i = 0; i < 10; i++) { const a = (i - 4.5)*.2, t = new THREE.Mesh(geo('bl_tt', () => new THREE.ConeGeometry(.022, .07, 5)), bone); t.position.set(Math.sin(a)*.17, -.2, .2 + Math.cos(a)*.1); t.rotation.x = Math.PI; head.add(t); }
+  const crown = new THREE.Mesh(geo('bl_cw', () => new THREE.TorusGeometry(.36, .04, 8, 30).rotateX(Math.PI/2)), gold); crown.position.y = .22; head.add(crown);
+  for (let i = 0; i < 8; i++) { const a = i/8*Math.PI*2, sp = new THREE.Mesh(geo('bl_cs', () => new THREE.ConeGeometry(.06, .38, 5)), gold); sp.position.set(Math.cos(a)*.36, .42, Math.sin(a)*.36); sp.rotation.set(Math.sin(a)*.25, 0, -Math.cos(a)*.25); head.add(sp);
+    if (i % 2 === 0) { const gm = new THREE.Mesh(geo('bl_gm', () => new THREE.OctahedronGeometry(.05)), hotMat(0xff2a3a, 3)); gm.position.set(Math.cos(a)*.39, .26, Math.sin(a)*.39); head.add(gm); } }
+  /* bras décharnés et manches */
+  const arm = s => { const sh = grp(fly, s*.75, 3.2, 0); const sl = new THREE.Mesh(geo('bl_sl', () => organic(ptube([[0, 0, 0], [0, -.4, .05], [0, -.85, .1]], .2, .34, 12, 16), .02, 6)), robe); sh.add(sl);
+    const hand = grp(sh, 0, -.95, .12); bseg(hand, [0, 0, 0], [0, -.18, .03], .06, bone); for (let f = 0; f < 4; f++) bseg(hand, [(f - 1.5)*.05, -.17, .03], [(f - 1.5)*.07, -.36, .1], .018, bone); return {sh, hand}; };
+  const aR = arm(1), aL = arm(-1);
+  const staff = grp(aR.hand, 0, -.25, .08); const sw = new THREE.Mesh(geo('bl_stf', () => uvSwap(ptube([[0, -2.4, 0], [.03, -1, -.02], [-.02, .6, .02], [0, 1.9, 0]], .06, .045, 30, 8, .008, 12), 1, 6)), smat('stWD', () => pbr({c:0x3a2414, d:'bark', r:.8, ns:2.2}))); staff.add(sw);
+  for (let i = 0; i < 4; i++) { const a = i/4*Math.PI*2, c = Math.cos(a), s2 = Math.sin(a); staff.add(new THREE.Mesh(geo('bl_sc' + i, () => ptube([[c*.05, 1.85, s2*.05], [c*.18, 2.05, s2*.18], [c*.17, 2.3, s2*.17], [c*.05, 2.45, s2*.05]], .035, .004, 14, 6)), bone)); }
+  const gem = new THREE.Mesh(geo('bl_gem', () => new THREE.OctahedronGeometry(.17).scale(1, 1.6, 1)), hotMat(0xff3a5a, 3)); gem.position.y = 2.15; staff.add(gem); const gg = new THREE.Sprite(glowSprite(0xff3a5a, .8)); gg.scale.setScalar(1.4); gg.position.y = 2.15; staff.add(gg);
+  const palm = new THREE.Sprite(glowSprite(0x5aff9c, .0)); palm.material = palm.material.clone(); palm.scale.setScalar(.9); palm.position.y = -.3; aL.hand.add(palm);
+  /* orbes d'âme, cercle runique, bouclier */
+  const orbs = grp(fly, 0, 2, 0); for (let i = 0; i < 3; i++) { const o = new THREE.Mesh(geo('bl_orb', () => new THREE.IcosahedronGeometry(.2, 2)), plasmaMat('#5aff9c', 'spirit')); o.position.set(Math.cos(i*2.09)*2.1, 0, Math.sin(i*2.09)*2.1); orbs.add(o); }
+  const rr = new THREE.Mesh(geo('bl_rr', () => new THREE.RingGeometry(1.7, 1.85, 64).rotateX(-Math.PI/2)), new THREE.MeshBasicMaterial({color:new THREE.Color(0xff3a5a).multiplyScalar(2), transparent:true, opacity:.7, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, toneMapped:false})); rr.position.y = .22; body.add(rr);
+  const shM = new THREE.ShaderMaterial(Object.assign({uniforms:{uT:SPU.uT, uO:{value:0}}, vertexShader:VS_FR,
+    fragmentShader:SNOISE + `uniform float uT; uniform float uO; varying vec3 vN; varying vec3 vV; varying vec3 vP; void main(){ float f = pow(1. - abs(dot(normalize(vN), normalize(vV))), 2.5); float hx = smoothstep(.85, 1., abs(snoise(vP*1.6 + uT*.6))); gl_FragColor = vec4(vec3(.25, 1., .6)*(f*1.4 + hx*.5)*uO, 1.); }`}, ADD));
+  const bubble = new THREE.Mesh(ICO(), shM); bubble.scale.setScalar(2.6); bubble.position.y = 2.2; fly.add(bubble);
+  const sm = smooth3(); let so = 0;
+  return (k, mv0, at0, hu) => { sm.s(mv0, at0, hu); const mv = sm.mv, at = sm.at, hit = sm.hu;
+    fly.position.y = 1.6 + Math.sin(k*1.8)*.35; fly.rotation.x = mv*.12 - hit*.15; fly.rotation.z = Math.sin(k*1.1)*.04;
+    aR.sh.rotation.set(-.2 - at*1.4, 0, .15 + at*.2); aL.sh.rotation.set(-.3 - at*.9 + Math.sin(k*1.4)*.1, 0, -.25 - at*.3); palm.material.opacity = at*.9;
+    head.rotation.set(-at*.2 + hit*.3, Math.sin(k*.6)*.35, 0); jaw.rotation.x = .1 + at*.35 + Math.max(0, Math.sin(k*5))*.05;
+    orbs.rotation.y = k*1.4; orbs.position.y = 2 + Math.sin(k*2.3)*.4; rr.rotation.y = -k*.7; gem.rotation.y = k*2;
+    so += ((g.userData.shield ? 1 : 0) - so)*.08; shM.uniforms.uO.value = so*(.8 + Math.sin(k*4)*.2); bubble.visible = so > .02; bubble.rotation.y = k*.3; };
+};
+
+/* WYRM : corps écailleux, ailes membraneuses, trois moignons de cou (les têtes sont des entités à part) */
+const wyrmScale = c => smat('bwSc' + c, () => bmat('boss_wyrm', 3, 3, {c, phys:1, cc:.7, ns:1.5, rim:.4}));
+ORGB[5] = (g, body) => {
+  g.userData.noSquash = true; const sc = wyrmScale(0xffffff), bone = smat('bBone', () => bmat('boss_bone', 1, 1, {ns:1.5, r:1, rim:.3}));
+  const wing = smat('bwWing', () => bmat('boss_wing', 1, 1, {ns:1.2, side:THREE.DoubleSide, r:1}));
+  const hull = grp(body, 0, 0, 0);
+  const tb = new THREE.Mesh(geo('bw_body', () => ptube([[0, 2.9, 2.2], [0, 2.7, .9], [0, 2.5, -.6], [0, 2.3, -2.2]], 1.05, .75, 28, 22, .06, 1.6, .5)), sc); tb.castShadow = true; hull.add(tb);
+  const belly = new THREE.Mesh(geo('bw_bel', () => organic(new THREE.SphereGeometry(1.3, 24, 16), .04, 3, 2)), smat('bwBel', () => pbr({c:0x5a4a6a, d:'leather', r:.6, ns:1.8}))); belly.scale.set(.85, .7, 1.7); belly.position.set(0, 2.1, .1); hull.add(belly);
+  [[-1.1, 3.2, 2.2], [0, 3.45, 2.5], [1.1, 3.2, 2.2]].forEach(([x, y, z], i) => { const st = new THREE.Mesh(geo('bw_st' + i, () => ptube([[0, 0, 0], [x*.25, .4, .35], [x*.4, .7, .6]], .62, .55, 10, 16, .03, 2)), sc); st.position.set(x*.5, y - .5, z - .3); hull.add(st); });
+  for (let i = 0; i < 9; i++) { const sp = new THREE.Mesh(geo('bw_ds', () => ptube([[0, 0, 0], [0, .35, -.15], [0, .6, -.4]], .16, .01, 10, 6)), bone); sp.position.set(0, 3.55 - Math.abs(i - 3)*.08, 1.8 - i*.55); hull.add(sp); }
+  /* ailes : bras osseux + doigts + membrane */
+  const wings = [-1, 1].map(s => { const p = grp(hull, s*1.0, 3.4, .5); const inner = grp(p, 0, 0, 0); if (s < 0) inner.scale.x = -1;
+    const bns = [[[0, 0, 0], [1.5, .9, .1], [3, 1.3, -.2]], [[3, 1.3, -.2], [4.4, .8, -.6], [5.6, .2, -1.1]], [[3, 1.3, -.2], [4, .3, -1.6], [4.6, -.4, -2.4]], [[3, 1.3, -.2], [3.2, -.1, -2.1], [2.9, -.8, -2.8]]];
+    bns.forEach((b, i) => inner.add(new THREE.Mesh(geo('bw_wb' + i, () => ptube(b, i ? .09 : .16, .03, 14, 8)), bone)));
+    const mem = new THREE.Mesh(geo('bw_mem', () => { const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(3, -.2); sh.quadraticCurveTo(4.4, -.4, 5.6, -1.1); sh.quadraticCurveTo(4.9, -1.6, 4.6, -2.4); sh.quadraticCurveTo(3.8, -2.4, 2.9, -2.8); sh.quadraticCurveTo(1.6, -2.4, 0, -1.2); sh.lineTo(0, 0);
+      const sg = new THREE.ShapeGeometry(sh, 12).rotateX(-Math.PI/2), pp = sg.attributes.position, uv = sg.attributes.uv; for (let i = 0; i < pp.count; i++) { uv.setXY(i, pp.getX(i)/5.6, -pp.getZ(i)/2.8); pp.setY(i, pp.getX(i)*.18 + Math.sin(pp.getX(i)*1.5)*.2 - (-pp.getZ(i))*.05); } sg.computeVertexNormals(); return sg; }), wing); mem.castShadow = true; inner.add(mem);
+    return p; });
+  /* pattes griffues */
+  const legs = [[-1, 1.2], [1, 1.2], [-1, -1.4], [1, -1.4]].map(([s, z], i) => { const hp = grp(hull, s*.95, 2.2, z); hp.add(new THREE.Mesh(geo('bw_th', () => ptube([[0, 0, 0], [0, -.6, .2], [0, -1.1, .1]], .32, .22, 10, 12, .02, 4)), sc));
+    const kn = grp(hp, 0, -1.1, .1); kn.add(new THREE.Mesh(geo('bw_sh', () => ptube([[0, 0, 0], [0, -.5, -.15], [0, -.95, .05]], .22, .16, 10, 10, .015, 5)), sc));
+    for (let c = 0; c < 3; c++) { const cl = new THREE.Mesh(geo('bw_cl', () => ptube([[0, 0, 0], [0, -.05, .2], [0, -.15, .38]], .06, .005, 10, 6)), bone); cl.position.set((c - 1)*.12, -.95, .1); kn.add(cl); } return {hp, kn, ph:i % 3 ? Math.PI : 0}; });
+  /* queue articulée terminée par une lame */
+  const tail = []; let par = hull; for (let i = 0; i < 6; i++) { const p = grp(par, 0, i ? 0 : 2.3, i ? -1.0 : -2.2); p.add(new THREE.Mesh(geo('bw_t' + i, () => ptube([[0, 0, 0], [0, -.05, -.5], [0, -.08, -1.05]], .7 - i*.1, .62 - i*.1, 8, 14, .02, 3)), sc)); tail.push(p); par = p; }
+  const blade = new THREE.Mesh(geo('bw_bl', () => new THREE.ConeGeometry(.35, 1.4, 4).rotateX(-Math.PI/2).translate(0, 0, -1.6).scale(1, .3, 1)), bone); par.add(blade);
+  const sm = smooth3();
+  return (k, mv0, at0, hu) => { sm.s(mv0, at0, hu); const mv = sm.mv, at = sm.at, f = k*3.2;
+    legs.forEach(L => { const w = Math.sin(f + L.ph)*mv; L.hp.rotation.x = w*.45; L.kn.rotation.x = Math.max(0, -w)*.6; });
+    wings.forEach((p, i) => { p.rotation.z = (i ? -1 : 1)*(-.15 + Math.sin(k*1.6)*.35 + at*.4); p.rotation.y = (i ? 1 : -1)*(.1 + mv*.2); });
+    tail.forEach((p, i) => { p.rotation.y = Math.sin(k*1.8 - i*.6)*.22; p.rotation.x = Math.sin(k*1.3 - i*.5)*.05; });
+    hull.position.y = Math.sin(f*2)*.05*mv; hull.rotation.x = -at*.15; };
+};
+/* TÊTES DU WYRM : cou serpentin, crâne sculpté, cornes, mâchoire, souffle élémentaire */
+[11, 12, 13].forEach(ht => { ORGB[ht] = (g, body) => {
+  g.userData.noSquash = true; const col = HEAD_COL[ht], el = HEAD_EL[ht];
+  const tint = {11:0xffb09a, 12:0xb8e4ff, 13:0x9a86b8}[ht], sc = wyrmScale(tint), bone = smat('bBone', () => bmat('boss_bone', 1, 1, {ns:1.5, r:1, rim:.3}));
+  const neck = grp(body, 0, 0, 0);
+  neck.add(new THREE.Mesh(geo('bh_nk', () => ptube([[0, 2.6, -2.4], [0, 3.3, -1.6], [0, 4.0, -.9], [0, 4.45, -.2]], .62, .42, 20, 16, .03, 2.5)), sc));
+  const head = grp(neck, 0, 4.6, 0);
+  const sk = new THREE.Mesh(geo('bh_sk', () => organic(new THREE.SphereGeometry(.55, 28, 20), .03, 4, 5, (v, n) => (n.y > .5 ? Math.pow(Math.max(0, Math.sin(v.z*12)), 6)*.04 : 0))), sc); sk.scale.set(.85, .72, 1.4); head.add(sk); sk.castShadow = true;
+  const sn = new THREE.Mesh(geo('bh_sn', () => organic(new THREE.SphereGeometry(.4, 22, 16), .02, 6, 6)), sc); sn.scale.set(.7, .5, 1.3); sn.position.set(0, -.08, .85); head.add(sn);
+  for (let i = 0; i < 12; i++) { const s = i < 6 ? -1 : 1, j = i % 6, t = new THREE.Mesh(geo('bh_tt', () => new THREE.ConeGeometry(.04, .17, 5)), bone); t.position.set(s*(.2 - j*.012), -.28, .4 + j*.16); t.rotation.x = Math.PI; head.add(t); }
+  const jaw = grp(head, 0, -.25, .15); const jm = new THREE.Mesh(geo('bh_jw', () => organic(new THREE.SphereGeometry(.38, 20, 12, 0, Math.PI*2, Math.PI*.5, Math.PI*.5), .02, 6, 7)), sc); jm.scale.set(.75, .45, 1.6); jm.position.z = .45; jaw.add(jm);
+  for (let i = 0; i < 10; i++) { const s = i < 5 ? -1 : 1, j = i % 5, t = new THREE.Mesh(geo('bh_tt', null), bone); t.position.set(s*(.18 - j*.01), .02, .5 + j*.16); jaw.add(t); }
+  [-1, 1].forEach(s => { head.add(new THREE.Mesh(geo('bh_hn' + s, () => ptube([[s*.25, .25, -.2], [s*.45, .55, -.55], [s*.5, .65, -1.0], [s*.42, .5, -1.35]], .11, .01, 18, 8, .006, 14)), bone));
+    head.add(new THREE.Mesh(geo('bh_hs' + s, () => ptube([[s*.3, .05, -.1], [s*.55, .1, -.4], [s*.62, .02, -.7]], .06, .005, 12, 6)), bone));
+    eyeGlow(head, s*.26, .12, .48, col, .07, .7, 3.5); });
+  for (let i = 0; i < 5; i++) { const sp = new THREE.Mesh(geo('bh_cr', () => new THREE.ConeGeometry(.07, .4, 5)), bone); sp.position.set(0, .4 - i*.02, .3 - i*.32); sp.rotation.x = -.6; head.add(sp); }
+  const throat = new THREE.Sprite(glowSprite(col, .0)); throat.material = throat.material.clone(); throat.scale.setScalar(1.6); throat.position.set(0, -.25, .9); head.add(throat);
+  const sm = smooth3(); let fxT = 0; const wp = new THREE.Vector3(), cs = '#' + new THREE.Color(col).getHexString();
+  g.userData.die = k => { neck.rotation.x = k*.9; head.rotation.x = k*.6; jaw.rotation.x = .4; neck.position.y = -k*1.5; };
+  return (k, mv0, at0, hu) => { sm.s(mv0, at0, hu); const at = sm.at, hit = sm.hu, ph = ht*1.7;
+    neck.rotation.set(Math.sin(k*1.1 + ph)*.08 - at*.25 + hit*.3, Math.sin(k*.8 + ph)*.18, Math.sin(k*1.3 + ph)*.06);
+    head.rotation.set(-.15 + Math.sin(k*1.7 + ph)*.1 + at*.35, Math.sin(k*1.2 + ph)*.15, 0); jaw.rotation.x = .12 + at*.75 + Math.max(0, Math.sin(k*3 + ph))*.05;
+    throat.material.opacity = .25 + at*.8 + Math.sin(k*5)*.08;
+    fxT -= 1/60; if (fxT <= 0) { fxT = .25; sn.getWorldPosition(wp); puff(wp.x, wp.y, wp.z, el === 'fire' ? '#ff8a3a' : el === 'ice' ? '#dff6ff' : '#2a5a34', 1, .6, .35, .8, el === 'fire' ? 1.2 : .3); } };
+}; });
+
 function arrowFx(m, peer){
   const o = peer === me.peer || peer === 'me' ? {x:me.x, z:me.z} : others.get(peer) ? {x:others.get(peer).g.position.x, z:others.get(peer).g.position.z} : null; if (!o) return;
   const a = new THREE.Mesh(geo('arrow', () => new THREE.CylinderGeometry(.025, .025, 1.1, 4).rotateX(Math.PI/2)), glowMat(0xbfefff)); scene.add(a);
@@ -2387,7 +2645,7 @@ function onWorld(msg){
   const ds = new Set();
   if (Array.isArray(D.d)) for (const t of D.d) { if (!Array.isArray(t)) continue; const [id, ty, x, z] = t; if (!fin(id) || !['tome','hp','mp','pw'].includes(ty) || !fin(x) || !fin(z)) continue; ds.add(id); if (!drops.has(id)) drops.set(id, {id, t:ty, x, z, age:0, g:dropMesh(ty)}); W.did = Math.max(W.did, id+1); }
   for (const [id, d] of drops) if (!ds.has(id)) { scene.remove(d.g); drops.delete(id); }
-  if (Array.isArray(D.h)) for (const h of D.h) { if (!Array.isArray(h)) continue; if (h[0] === me.peer && fin(h[1])) takeDamage(clamp(h[1], 0, 60), null); if (h[0] === 'slam') { const m = mons.get(h[1]); if (m) slamFx(m); } if (h[0] === 'arrow') { const m = mons.get(h[1]); if (m && typeof h[2] === 'string') arrowFx(m, h[2]); } }
+  if (Array.isArray(D.h)) for (const h of D.h) { if (!Array.isArray(h)) continue; if (h[0] === me.peer && fin(h[1])) takeDamage(clamp(h[1], 0, 60), null); if (h[0] === 'slam') { const m = mons.get(h[1]); if (m) slamFx(m); } bossHit(h); if (h[0] === 'arrow') { const m = mons.get(h[1]); if (m && typeof h[2] === 'string') arrowFx(m, h[2]); } }
 }
 function computeHost(){ if (!hostReady) return; if (!room) { isHost = true; hostPeer = me.peer; } }
 
@@ -2671,6 +2929,7 @@ function loop(){
     if (!isHost) { m.x += (m.tx - m.x)*Math.min(1, dt*10); m.z += (m.tz - m.z)*Math.min(1, dt*10); }
     const g = m.g, dx = m.x - g.position.x, dz = m.z - g.position.z, spd = Math.hypot(dx, dz)/Math.max(dt, .001);
     if (Math.abs(dx) + Math.abs(dz) > .001) { const ry = Math.atan2(dx, dz); let d2 = ry - g.rotation.y; d2 = Math.atan2(Math.sin(d2), Math.cos(d2)); g.rotation.y += d2*Math.min(1, dt*10); }
+    if (MT[m.type].head) { const ry = Math.atan2(me.x - m.x, me.z - m.z); let d2 = ry - g.rotation.y; d2 = Math.atan2(Math.sin(d2), Math.cos(d2)); g.rotation.y += d2*Math.min(1, dt*4); }
     g.position.set(m.x, 0, m.z);
     m.mv = (m.mv || 0) + (clamp(spd/MT[m.type].spd, 0, 1) - (m.mv || 0))*Math.min(1, dt*6);
     if (!isHost && m.a > 0) m.a -= dt;

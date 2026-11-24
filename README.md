@@ -22,6 +22,12 @@ Les sorts se crient en anglais. La reconnaissance (Moonshine) tourne dans le nav
 
 Vous commencez avec **un sort tiré au hasard** dans votre école. Chaque parchemin ajoute **un autre sort au hasard** parmi ceux qui restent ; le grimoire liste vos sorts dans l'ordre où vous les avez appris (touches 1 à 7 = 1er à 7e sort de la liste). **L'incantation tourne** : chaque sort a un cycle de 4 phrases (ex. Blazing Orb : « Blazing Orb », « Molten Globe », « Ember Sun », « Lava Pearl »). Seule la phrase affichée dans le grimoire lance le sort ; après chaque lancer, le grimoire passe à la suivante : les 4 défilent dans un ordre mélangé, chacune une fois par tour, puis un nouveau tour recommence dans un autre ordre. Chaque phrase a ses 10 premiers essais d'apprentissage, et ce qui est appris reste propre à cette phrase.
 
+## Boss (toutes les 5 vagues, seuls avec leurs propres troupes)
+
+- **Golem des Ruines** : lance des rochers sur un joueur au hasard — un cercle rouge marque l'impact, sortez-en ! Sous 50 % de vie, il en lance trois à la fois. Faible à la Glace.
+- **Liche Écarlate** : vole à distance, garde toujours 4 serviteurs et ressuscite ceux qu'on abat (rayon vert). Tant que 3 serviteurs vivent, un bouclier d'âmes réduit ses dégâts subis de 75 %. Elle tire des orbes d'âme (cercle vert au sol).
+- **Wyrm aux trois têtes** : tête de feu (faible à la Glace), de glace (faible au Feu) et d'ombre (faible à l'Esprit). Chaque tête crache un souffle en cône annoncé au sol. Le corps est invulnérable : tranchez les trois têtes en moins de 25 s après la première, sinon les têtes tombées repoussent.
+
 ## Faiblesses des monstres
 
 Chaque monstre encaisse plus ou moins selon l'école de magie (chiffre jaune avec « ! » = faiblesse, petit chiffre gris = résistance ; le jeu l'annonce la première fois).
