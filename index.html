@@ -136,6 +136,7 @@ button{cursor:pointer}
     <div class="row">
       <label class="field">Nom de sorcier<input id="nm" maxlength="16" autocomplete="off"></label>
       <label class="field">Code pour rejoindre<input id="code" maxlength="8" autocomplete="off" placeholder="ex. k7f2q"></label>
+      <label class="field">Reconnaissance vocale<select id="eng"><option value="whisper">Whisper (précis, tous navigateurs)</option><option value="browser">Navigateur (Chrome/Edge)</option></select></label>
       <label class="field">Langue du micro<select id="lang"><option value="fr-FR">Français (accent français)</option><option value="en-US">Anglais</option></select></label>
       <div class="field">Mode<div class="seg" id="mode"><button data-m="coop" aria-pressed="true">Coop</button><button data-m="pvp" aria-pressed="false">Chacun pour soi</button></div></div>
     </div>
@@ -150,7 +151,7 @@ button{cursor:pointer}
       <li><kbd>Clic</kbd> verrouiller la vue · petit trait blanc (les vrais sorts se lancent à la voix)</li>
       <li><kbd>Z Q S D</kbd> / <kbd>W A S D</kbd> se déplacer · <kbd>Maj</kbd> courir · <kbd>Espace</kbd> sauter</li>
       <li><kbd>V</kbd> micro on/off · <b>criez le nom du sort</b>, vos amis vous entendent</li>
-      <li><kbd>Clic droit</kbd> maintenu : parlez puis relâchez pour lancer (pratique avec du bruit)</li>
+      <li><kbd>Clic droit</kbd> maintenu : parlez puis relâchez pour lancer (le plus fiable avec du bruit)</li>
       <li><kbd>Entrée</kbd> écrire une incantation · <kbd>T</kbd> chat de salle</li>
       <li><kbd>Molette</kbd> / <kbd>1–7</kbd> feuilleter le grimoire</li>
       <li><kbd>Tab</kbd> scores · le créateur partage son code, 3 sorciers max</li>
@@ -377,7 +378,7 @@ const mons = new Map(), drops = new Map(), others = new Map(), proj = [], fx = [
 const W = {w:0, st:'break', t:5, q:[], spT:0, k:0, nid:1, did:1, hits:[], emitT:0, overT:0};
 let room = null, localStream = null, rec = null, recOn = false;
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (!SR) $('#note').textContent += ' Reconnaissance des sorts indisponible dans ce navigateur (prenez Chrome ou Edge) : tapez Entrée pour écrire vos sorts. Le chat vocal marche quand même.';
+if (!SR) { const o = document.querySelector('#eng option[value=browser]'); o.disabled = true; o.textContent = 'Navigateur (absent ici)'; }
 if (!window.Peer) $('#note').textContent += ' Le module multijoueur n\'a pas pu se charger : seule la partie solo est possible.';
 
 /* ---------- speech & matching ---------- */
@@ -418,8 +419,92 @@ function onSpeech(raw, final){
   if (!uttCast) { const m = matchSpell(all); if (m && heard.n === spellOf(m.id).n && now() - heard.t < 3) { if (final) uttCast = false; return; } const quick = m && (m.s >= .8 || (prevPart && prevPart.id === m.id)); prevPart = m; if (final) prevPart = null; if (m && (final || quick)) { uttCast = true; tryCast(m.id); } else if (final) fizzle(); }
   if (final) uttCast = false;
 }
-function setMic(s){ if (!SR) s = 'na'; const el = $('#mic'); el.classList.toggle('on', s === 'on'); $('#mict').textContent = s === 'on' ? 'Micro actif · criez votre sort' : s === 'na' ? 'Sorts au clavier : Entrée pour écrire' : micWanted ? 'Micro en pause…' : 'Micro coupé · V pour l\'activer'; }
+/* ---------- Whisper : vrai modèle de reconnaissance vocale, exécuté dans le navigateur ---------- */
+const engine = () => $('#eng').value === 'browser' && SR ? 'browser' : 'whisper';
+let asrW = null, asrReady = false, asrErr = '', asrPct = 0, asrDev = '', asrBusy = false, asrNext = null, asrId = 0, testing = false;
+const asrFiles = {};
+const WORKER = `
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3';
+env.allowLocalModels = false;
+let asr = null;
+self.onmessage = async e => {
+  const d = e.data;
+  if (d.type === 'load') {
+    try { asr = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', { device: 'wasm', dtype: 'q8', progress_callback: p => { if (p.status === 'progress') self.postMessage({type:'prog', file:p.file, p:p.progress}); } }); }
+    catch (er) { self.postMessage({type:'err', msg:String(er && er.message || er)}); return; }
+    self.postMessage({type:'ready', dev:'wasm'});
+  }
+  if (d.type === 'asr' && asr) {
+    try { const out = await asr(d.audio, {language:d.lang, task:'transcribe'}); self.postMessage({type:'text', id:d.id, text:out.text || ''}); }
+    catch (er) { self.postMessage({type:'text', id:d.id, text:''}); }
+  }
+};`;
+function loadASR(){
+  if (asrW || engine() !== 'whisper') return;
+  try { asrW = new Worker(URL.createObjectURL(new Blob([WORKER], {type:'text/javascript'})), {type:'module'}); }
+  catch (e) { asrErr = 'worker'; asrStatus(); return; }
+  asrW.onmessage = e => { const d = e.data;
+    if (d.type === 'prog') { asrFiles[d.file] = d.p; const v = Object.values(asrFiles); asrPct = Math.round(v.reduce((a, b) => a + b, 0) / v.length); asrStatus(); }
+    if (d.type === 'ready') { asrReady = true; asrDev = d.dev; asrStatus(); }
+    if (d.type === 'err') { asrErr = d.msg; asrStatus(); }
+    if (d.type === 'text') { asrBusy = false; onWhisper(d.text); if (asrNext) { const n = asrNext; asrNext = null; sendASR(n); } } };
+  asrW.onerror = () => { asrErr = 'worker'; asrStatus(); };
+  asrW.postMessage({type:'load'});
+}
+function asrStatus(){
+  const t = asrErr ? 'Le modèle vocal n\'a pas pu se charger : vérifiez votre connexion, ou choisissez « Navigateur » dans Chrome/Edge.' : asrReady ? 'Modèle vocal prêt : cliquez sur « Tester le micro » ou lancez une partie.' : 'Téléchargement du modèle vocal Whisper… ' + asrPct + ' % (une seule fois)';
+  if (!testing) $('#mtest').textContent = t;
+  if (playing) setMic(micWanted ? 'on' : 'off');
+}
+function onWhisper(text){
+  text = String(text || '').replace(/\[.*?\]|\(.*?\)/g, '').trim();
+  if (testing) { const names = CL[pickCls].spells.map(x => x.n), sc = scoreFor(text, pickCls + ':0'), hit = sc >= .66;
+    $('#mtest').innerHTML = 'J\'entends : « ' + esc(text || '…') + ' »' + (hit ? ' <b>→ ' + esc(names[0]) + ' reconnu, ça marche !</b>' : ' · ressemblance ' + Math.round(sc*100) + ' % (il faut 66 %)'); return; }
+  if (!text || !playing) return;
+  uttCast = false; onSpeech(text, true);
+}
+/* capture du micro, détection de la voix, puis envoi à Whisper en 16 kHz */
+let capOn = false, capRate = 48000, vadOn = false, vadSil = 0, vadLen = 0, vadFloor = .008, vadBuf = [], pttBuf = [];
+const preRoll = [];
+function setupCapture(){
+  if (capOn || !localStream || !AC) return;
+  try { const src = AC.createMediaStreamSource(localStream), node = AC.createScriptProcessor(2048, 1, 1), mute = AC.createGain(); mute.gain.value = 0;
+    capRate = AC.sampleRate; src.connect(node); node.connect(mute); mute.connect(AC.destination); node.onaudioprocess = e => onChunk(e.inputBuffer.getChannelData(0)); capOn = true; } catch (e) {}
+}
+function onChunk(ch){
+  if (engine() !== 'whisper' || !asrReady || !micWanted || !(playing || testing)) return;
+  const c = new Float32Array(ch), dur = c.length / capRate; let q = 0; for (let i = 0; i < c.length; i++) q += c[i]*c[i]; const rms = Math.sqrt(q / c.length);
+  if (pttOn) { pttBuf.push(c); return; }
+  if (!vadOn) {
+    preRoll.push(c); if (preRoll.length > 6) preRoll.shift();
+    if (rms > Math.max(vadFloor*3.2, .012)) { vadOn = true; vadSil = 0; vadLen = 0; vadBuf = preRoll.splice(0); }
+    else vadFloor = vadFloor*.97 + rms*.03;
+  } else {
+    vadBuf.push(c); vadLen += dur;
+    if (rms < Math.max(vadFloor*2.2, .009)) vadSil += dur; else vadSil = 0;
+    if (vadSil > .38 || vadLen > 3) { vadOn = false; if (vadLen - vadSil > .18) sendASR(vadBuf); vadBuf = []; }
+  }
+}
+function to16k(chunks){
+  let len = 0; for (const c of chunks) len += c.length; const all = new Float32Array(len); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+  const r = capRate / 16000, n = Math.floor(len / r), out = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const x = i*r, i0 = Math.floor(x), f = x - i0; out[i] = all[i0]*(1 - f) + (all[i0 + 1] || 0)*f; }
+  return out;
+}
+function sendASR(chunks){
+  if (!asrW || !asrReady || !chunks.length) return;
+  if (asrBusy) { asrNext = chunks; return; }
+  asrBusy = true; const audio = to16k(chunks);
+  if (playing) $('#mict').textContent = 'Déchiffrage de l\'incantation…';
+  asrW.postMessage({type:'asr', id:++asrId, audio, lang:$('#lang').value.startsWith('fr') ? 'french' : 'english'}, [audio.buffer]);
+}
+$('#eng').addEventListener('change', () => { if (engine() === 'whisper') loadASR(); else $('#mtest').textContent = 'Reconnaissance du navigateur : dites le premier sort de votre classe avec le bouton de test.'; });
+try { const s3 = JSON.parse(localStorage.getItem('incantatio') || '{}'); if (s3.e && !(s3.e === 'browser' && !SR)) $('#eng').value = s3.e; } catch (e) {}
+setTimeout(loadASR, 300);
+
+function setMic(s){ if (engine() === 'whisper') { if (asrErr) s = 'na'; else if (!asrReady) s = 'load'; } else if (!SR) s = 'na'; const el = $('#mic'); el.classList.toggle('on', s === 'on'); $('#mict').textContent = s === 'load' ? 'Modèle vocal : ' + asrPct + ' %…' : s === 'on' ? 'Micro actif · criez votre sort' : s === 'na' ? 'Sorts au clavier : Entrée pour écrire' : micWanted ? 'Micro en pause…' : 'Micro coupé · V pour l\'activer'; }
 function startMic(){
+  if (engine() === 'whisper') { setMic(micWanted ? 'on' : 'off'); return; }
   if (!SR || recOn || !micWanted) return;
   if (!rec) { rec = new SR(); rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 5;
     rec.onresult = e => { lastRes = now(); for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i], alts = []; for (let k = 0; k < r.length; k++) alts.push(r[k].transcript); onSpeech(alts, r.isFinal); } };
@@ -436,10 +521,20 @@ function srError(code){
   return '';
 }
 const BADB = navigator.brave || window.opr || /OPR\/|Electron|Claude/i.test(navigator.userAgent);
-if (SR && BADB) $('#note').textContent += ' Attention : ce navigateur bloque souvent la reconnaissance vocale. Pour crier vos sorts, utilisez Google Chrome ou Microsoft Edge.';
+if (SR && BADB && engine() === 'browser') $('#note').textContent += ' Attention : ce navigateur bloque souvent la reconnaissance vocale. Pour crier vos sorts, utilisez Google Chrome ou Microsoft Edge.';
 let testRec = null;
 $('#mtestb').onclick = () => {
   const out = $('#mtest');
+  if (engine() === 'whisper') {
+    if (testing) { testing = false; $('#mtestb').textContent = 'Tester le micro'; asrStatus(); return; }
+    try { AC = AC || new AudioContext(); AC.resume(); } catch (e) {}
+    loadASR(); testing = true; $('#mtestb').textContent = 'Arrêter le test';
+    out.textContent = asrReady ? 'Parlez… (dites « ' + CL[pickCls].spells[0].n + ' »)' : 'Le modèle vocal se télécharge encore (' + asrPct + ' %) : parlez dès qu\'il est prêt.';
+    (localStream ? Promise.resolve(localStream) : navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}}))
+      .then(st => { localStream = st; setupCapture(); }).catch(() => { out.innerHTML = '<i>Micro bloqué ou introuvable : autorisez-le avec l\'icône micro de la barre d\'adresse.</i>'; testing = false; });
+    setTimeout(() => { if (testing) { testing = false; $('#mtestb').textContent = 'Tester le micro'; } }, 20000);
+    return;
+  }
   if (!SR) { out.innerHTML = '<i>Reconnaissance vocale absente de ce navigateur : utilisez Google Chrome ou Microsoft Edge.</i>'; return; }
   if (testRec) { try { testRec.stop(); } catch (e) {} testRec = null; return; }
   const names = CL[pickCls].spells.map(s => s.n);
@@ -847,8 +942,9 @@ renderer.domElement.addEventListener('mousedown', e => {
 });
 /* clic droit maintenu = « appuyer pour parler » : au relâchement, on lance le sort entendu même si le bruit empêche la phrase de se terminer */
 renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
-addEventListener('mousedown', e => { if (!playing || e.button !== 2 || !locked()) return; pttOn = true; pttText = ''; pttCast = false; if (!recOn && micWanted) startMic(); $('#mict').textContent = 'Parlez… (relâchez pour lancer)'; $('#mic').classList.add('on'); });
+addEventListener('mousedown', e => { if (!playing || e.button !== 2 || !locked()) return; pttOn = true; pttText = ''; pttCast = false; pttBuf = []; vadOn = false; vadBuf = []; if (!recOn && micWanted) startMic(); $('#mict').textContent = 'Parlez… (relâchez pour lancer)'; $('#mic').classList.add('on'); });
 addEventListener('mouseup', e => { if (e.button !== 2 || !pttOn) return; pttOn = false;
+  if (engine() === 'whisper') { if (pttBuf.length > 3) sendASR(pttBuf); else $('#bkhint').textContent = 'Maintenez le clic droit pendant que vous parlez.'; pttBuf = []; return; }
   if (!pttCast) { if (pttText) { const m = matchSpell(pttText); if (m) { uttCast = true; tryCast(m.id); } else fizzle(); } else $('#bkhint').textContent = 'Je n\'ai rien entendu : maintenez le clic droit pendant que vous parlez.'; }
   pttText = ''; });
 addEventListener('mousemove', e => { if (!locked()) return; me.yaw -= e.movementX*.0022; me.pitch = clamp(me.pitch - e.movementY*.0022, -1.45, 1.45); });
@@ -864,7 +960,7 @@ async function begin(kind){
   try { const r = renderer.domElement.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch (e) {}
   try { AC = AC || new AudioContext(); } catch (e) {}
   me.cls = pickCls; me.name = ($('#nm').value.trim() || 'Sorcier').slice(0, 16); me.since = Date.now(); mode = pickMode;
-  try { localStorage.setItem('incantatio', JSON.stringify({c:me.cls, n:me.name, l:$('#lang').value})); } catch (e) {}
+  try { localStorage.setItem('incantatio', JSON.stringify({c:me.cls, n:me.name, l:$('#lang').value, e:$('#eng').value})); } catch (e) {}
   document.documentElement.style.setProperty('--acc', CL[me.cls].col);
   known = [me.cls + ':0']; page = 0; renderBook();
   $('#menu').classList.add('hidden'); $('#hud').classList.remove('hidden');
@@ -872,7 +968,7 @@ async function begin(kind){
   {
     try { localStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}}); }
     catch (e) { localStream = null; sys('Micro refusé ou introuvable : autorisez-le avec l\'icône micro de la barre d\'adresse.'); }
-    if (localStream) { try { AC = AC || new AudioContext(); AC.resume(); levelAn = AC.createAnalyser(); levelAn.fftSize = 512; AC.createMediaStreamSource(localStream).connect(levelAn); } catch (e) { levelAn = null; } }
+    if (localStream) { try { AC = AC || new AudioContext(); AC.resume(); levelAn = AC.createAnalyser(); levelAn.fftSize = 512; AC.createMediaStreamSource(localStream).connect(levelAn); } catch (e) { levelAn = null; } setupCapture(); loadASR(); setMic(micWanted ? 'on' : 'off'); }
   }
   if (kind === 'host') {
     sys('Création de la partie…');
@@ -917,7 +1013,7 @@ function loop(){
     callT -= dt; if (callT <= 0) { callT = 1; ensureCalls(); }
     if (levelAn) { levelAn.getByteTimeDomainData(lvBuf); let q = 0; for (let i = 0; i < lvBuf.length; i++) { const v = (lvBuf[i] - 128)/128; q += v*v; } $('#lvl u').style.width = Math.min(100, Math.sqrt(q/lvBuf.length)*400) + '%'; }
     /* chien de garde : relance la reconnaissance si elle s'est arrêtée toute seule */
-    wdT -= dt; if (wdT <= 0) { wdT = 1.5; if (SR && micWanted && !recOn) startMic(); else if (SR && micWanted && recOn && lastRes && now() - lastRes > 45) { lastRes = now(); try { rec.abort(); } catch (e) {} } }
+    wdT -= dt; if (wdT <= 0 && engine() === 'browser') { wdT = 1.5; if (SR && micWanted && !recOn) startMic(); else if (SR && micWanted && recOn && lastRes && now() - lastRes > 45) { lastRes = now(); try { rec.abort(); } catch (e) {} } }
     for (const [id, a] of audios) { const o = others.get(id); const d = o ? Math.hypot(o.g.position.x - me.x, o.g.position.z - me.z) : 0; a.volume = clamp(1 - d/70, .25, 1); }
     if (isHost) hostStep(dt);
     updHud(dt);
