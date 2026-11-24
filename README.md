@@ -1,4 +1,37 @@
-# Incantatio Arena — mise en ligne sur GitHub Pages
+# Incantatio Arena
+
+FPS multijoueur de sorciers : criez vos sorts dans le micro, farmez monstres et boss, récupérez des parchemins pour débloquer de nouveaux sorts. En coop ou chacun pour soi, jusqu'à 3 joueurs, avec chat vocal.
+
+**Jouer :** https://ericsendmusic-lgtm.github.io/incantatio-arena/
+
+## Classes et sorts
+
+| Classe | Sorts (dans l'ordre de déblocage) |
+|---|---|
+| Feu et Destruction | Fireball, Hellfire, Blazing Orb, Solar Flare, Cinder Storm, Inferno Blast, Pyroclasm |
+| Magie Spirituelle | Magic Spirit, Arcane Soul, Astral Wave, Phantom Bolt, Spirit Lance, Ethereal Pulse, Soulfire |
+| Glace et Eau | Frostbolt, Ice Nova, Glacial Spike, Tidal Wave, Frozen Orb |
+| Foudre et Tempête | Chain Lightning, Thunderstrike, Arcane Spark, Stormcaller |
+| Ombre et Nécromancie | Shadow Bolt, Soul Drain, Dark Pact, Necrotic Touch |
+
+Les noms français marchent aussi au micro (« boule de feu », « esprit magique »…).
+
+## Butin
+
+- **Parchemin (halo doré)** : débloque le sort suivant de votre classe. Boss : 3 garantis ; brutes : 1 chance sur 3 ; petits monstres : 1 sur 10.
+- **Potion (halo vert)** : +45 PV.
+- **Cristal (halo bleu)** : +60 mana.
+- Un boss toutes les 5 vagues : Golem des Ruines, Liche Écarlate, Wyrm des Ombres.
+
+## Micro
+
+- Bouton **Tester le micro** sur l'écran d'accueil (affiche ce qui est entendu et le % de ressemblance).
+- **Clic droit maintenu** : parlez puis relâchez pour lancer, idéal s'il y a du bruit (ventilateur…).
+- Casque avec micro conseillé.
+
+---
+
+# Mise en ligne sur GitHub Pages
 
 Le jeu tient dans un seul fichier : `index.html`. Une fois en ligne, n'importe qui peut jouer avec le lien, sans compte.
 
@@ -43,10 +76,11 @@ Sur la page du dépôt : **Add file** → **Upload files**, glisse le nouveau `i
 
 | Touche | Action |
 |---|---|
-| Clic | Verrouiller la vue · trait magique de base |
+| Clic gauche | Verrouiller la vue · petit trait blanc (attaque de base) |
 | Z Q S D / W A S D | Se déplacer |
 | Maj / Espace | Courir / sauter |
 | V | Couper ou rallumer le micro (voix + sorts) |
+| Clic droit maintenu | Parler puis relâcher pour lancer le sort |
 | Crier le nom du sort | Lancer le sort |
 | Entrée | Écrire une incantation au clavier |
 | T | Chat écrit |
