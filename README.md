@@ -122,6 +122,7 @@ Sur la page du dépôt : **Add file** → **Upload files**, glisse le nouveau `i
 | Clic gauche | Verrouiller la vue · petit trait blanc (attaque de base) |
 | Z Q S D / W A S D | Se déplacer |
 | Espace | Sauter |
+| Échap | Pause (solo : partie figée ; en ligne : déconnexion, puis « Se reconnecter » au même code) |
 | V | Couper ou rallumer le micro (voix + sorts) |
 | Clic droit | Après un raté : apprendre le mot entendu au sort ouvert |
 | Crier le nom du sort | Lancer le sort |

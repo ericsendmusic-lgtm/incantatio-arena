@@ -99,6 +99,10 @@ button{cursor:pointer}
 #rc small{display:block;font-family:'IM Fell English',serif;font-size:13px;color:#cfc3aa}
 #inv{margin:10px 0 0;font-size:15px}#inv button{margin-left:8px;height:36px;padding:0 12px;border-radius:6px;border:1px solid #eadbb9;background:#eadbb9;color:#2b1a0d;font-family:Cinzel,serif}
 #pause{inset:0;display:grid;place-items:center;pointer-events:none}
+#pause h3{margin:0 0 6px;font-family:'Pirata One',Cinzel,serif;font-size:34px;color:#f0d9a8;letter-spacing:.05em}
+#pause button{display:block;width:100%;margin:8px 0;padding:9px 16px;font:inherit;font-size:16px;cursor:pointer;color:#f3e6c8;background:linear-gradient(#3a2a1c,#22170f);border:1px solid #b8913f;border-radius:6px}
+#pause button:hover{background:linear-gradient(#5a3e24,#2e1f12)}
+#pause #pstat{max-width:340px;margin:4px auto 10px;font-size:15px;opacity:.9}
 #pause div{pointer-events:auto;background:rgba(10,12,24,.82);border:1px solid rgba(234,219,185,.35);border-radius:12px;padding:14px 22px;font-size:17px;text-align:center}
 #score{left:50%;top:22%;transform:translateX(-50%);background:rgba(10,12,24,.88);border:1px solid rgba(234,219,185,.35);border-radius:12px;padding:12px 18px;min-width:300px}
 #score table{border-collapse:collapse;width:100%;font-size:15px}#score td,#score th{padding:4px 8px;text-align:left}#score td:not(:first-child),#score th:not(:first-child){text-align:right}
@@ -217,7 +221,9 @@ button{cursor:pointer}
   <div class="hud" id="toasts"></div>
   <div class="hud" id="hurt"></div>
   <div class="hud hidden" id="dead"></div>
-  <div class="hud hidden" id="pause"><div>Cliquez sur l'arène pour reprendre<br><small>Échap libère la souris</small><p id="inv"></p></div></div>
+  <div class="hud hidden" id="pause"><div><h3>Pause</h3><p id="pstat">La partie est figée.</p>
+    <button id="presume">Reprendre</button><button id="preco" class="hidden">Se reconnecter et reprendre</button><button id="pquit">Quitter la partie</button>
+    <p id="inv"></p></div></div>
   <div class="hud" id="rc"></div>
   <div class="hud hidden" id="score"></div>
   <div class="hud" id="chat"><div id="chatlog"></div><input id="chatin" class="hidden" maxlength="140" autocomplete="off"></div>
@@ -2150,7 +2156,7 @@ const CAL_N = 10; let CAL = {}; try { CAL = JSON.parse(localStorage.getItem('inc
 const calLeft = id => Math.max(0, CAL_N - (CAL[lkey(id)] || 0));
 function calUse(id){ id = lkey(id); CAL[id] = (CAL[id] || 0) + 1; try { localStorage.setItem('incantatio-calib2', JSON.stringify(CAL)); } catch (e) {} }
 function fizzle(){ setTimeout(() => { if (lastFail && now() - lastFail.t < 4.5) $('#bkhint').textContent = 'Raté ? Clic droit : le jeu retient ce mot pour le sort ouvert dans le grimoire.'; }, 1200); $('#bkhint').textContent = lastNear && lastNear.s > .4 ? 'Presque ! « ' + spellOf(lastNear.id).n + ' » à ' + Math.round(lastNear.s*100) + ' %, répétez plus distinctement.' : 'Le sort se dissipe… parlez plus clairement.'; }
-function tryCast(id){
+function tryCast(id){ if (paused) return;
   if (pttOn) pttCast = true;
   if (me.dead || !known.includes(id)) return;
   const sp = spellOf(id); if ((cds[id] || 0) > now()) { toast(sp.n + ' : pas encore prêt'); return; }
@@ -2648,6 +2654,20 @@ function onWorld(msg){
   if (Array.isArray(D.h)) for (const h of D.h) { if (!Array.isArray(h)) continue; if (h[0] === me.peer && fin(h[1])) takeDamage(clamp(h[1], 0, 60), null); if (h[0] === 'slam') { const m = mons.get(h[1]); if (m) slamFx(m); } bossHit(h); if (h[0] === 'arrow') { const m = mons.get(h[1]); if (m && typeof h[2] === 'string') arrowFx(m, h[2]); } }
 }
 function computeHost(){ if (!hostReady) return; if (!room) { isHost = true; hostPeer = me.peer; } }
+/* pause : solo = partie figée ; en ligne = déconnexion, avec reconnexion au même code */
+let paused = false, netWas = null, autoReco = null;
+function updPause(){ $('#pause').classList.toggle('hidden', !paused);
+  $('#pstat').textContent = netWas ? (netWas.host ? 'Vous avez quitté votre partie en ligne. « Se reconnecter » la recrée avec le même code ' + netWas.code + ' : vos amis se reconnectent automatiquement.' : 'Vous avez quitté la partie ' + netWas.code + '. Vous pouvez vous y reconnecter.') : 'La partie est figée.';
+  $('#preco').classList.toggle('hidden', !netWas); $('#presume').textContent = netWas ? 'Reprendre seul' : 'Reprendre'; }
+function dropNet(){ const pObj = peerObj, hc = hostConn, cs = [...conns.values()]; room = null; hostConn = null; peerObj = null;
+  for (const id of [...others.keys()]) leftPeer(id); roster.clear(); conns.clear(); for (const [id, c] of calls) { try { c.close(); } catch (e) {} } calls.clear();
+  try { hc && hc.close(); } catch (e) {} for (const c of cs) { try { c.close(); } catch (e) {} } setTimeout(() => { try { pObj && pObj.destroy(); } catch (e) {} }, 150);
+  isHost = true; hostPeer = me.peer; for (const m of mons.values()) { m.x = m.tx; m.z = m.tz; m.hp = m.hp ?? m.max; } W.q = []; $('#rc').innerHTML = ''; }
+function netLeave(){ if (!room) return; netWas = {host:isHost, code:hostCode}; dropNet(); sys('Vous êtes déconnecté de la partie en ligne (pause).'); }
+async function netRejoin(quiet){ if (!netWas || !window.Peer) return false; const w = netWas; if (!quiet) $('#pstat').textContent = 'Reconnexion à la partie ' + w.code + '…';
+  try { if (w.host) { await hostGame(w.code); showCode(); sys('Partie recréée avec le code ' + hostCode + '.'); } else { await joinGame(w.code); showCode(); sys('Reconnecté à la partie ' + w.code + ' !'); }
+    netWas = null; if (autoReco) { clearInterval(autoReco); autoReco = null; } computeHost(); updPause(); return true; }
+  catch (e) { try { peerObj && peerObj.destroy(); } catch (er) {} peerObj = null; room = null; hostConn = null; isHost = true; hostPeer = me.peer; if (!quiet) { sys('Reconnexion impossible pour l\'instant : réessayez dans quelques secondes.'); updPause(); } return false; } }
 
 /* ---------- networking (PeerJS, navigateur à navigateur) ---------- */
 let peerObj = null, hostConn = null, hostCode = '';
@@ -2662,13 +2682,13 @@ function makeRoom(){ return {
 function dispatch(m){ const msg = {peer:m.f, sameTab:m.f === me.peer, data:m.d}; for (const fn of handlers[m.t] || []) { try { fn(msg); } catch (e) { console.error(e); } } }
 function broadcast(m, except){ for (const [id, c] of conns) if (id !== except && c.open) { try { c.send(m); } catch (e) {} } }
 function cleanPres(d){ if (!d || typeof d !== 'object') return null; return {n:typeof d.n === 'string' ? d.n.slice(0, 16) : 'Sorcier', c:CL[d.c] ? d.c : 'fire', x:fin(d.x) ? clamp(d.x, -60, 60) : 0, z:fin(d.z) ? clamp(d.z, -60, 60) : 0, ry:fin(d.ry) ? d.ry : 0, hp:fin(d.hp) ? clamp(d.hp, 0, 100) : 100, dd:!!d.dd, pk:fin(d.pk) ? d.pk : 0, de:fin(d.de) ? d.de : 0}; }
-function hostGame(){
+function hostGame(want, tries){
   return new Promise((res, rej) => {
-    hostCode = Math.random().toString(36).slice(2, 7).padEnd(5, 'x');
+    hostCode = want || Math.random().toString(36).slice(2, 7).padEnd(5, 'x');
     let opened = false;
     peerObj = new Peer(PREFIX + hostCode);
     peerObj.on('open', id => { opened = true; me.peer = id; isHost = true; hostPeer = id; room = makeRoom(); wireHandlers(); res(); });
-    peerObj.on('error', e => { if (opened) return; if (e && e.type === 'unavailable-id') { try { peerObj.destroy(); } catch (er) {} hostGame().then(res, rej); } else rej(e); });
+    peerObj.on('error', e => { if (opened) return; if (e && e.type === 'unavailable-id') { try { peerObj.destroy(); } catch (er) {} if (want && (tries || 0) < 6) setTimeout(() => hostGame(want, (tries || 0) + 1).then(res, rej), 1500); else hostGame().then(res, rej); } else rej(e); });
     peerObj.on('connection', c => {
       c.on('open', () => { if (conns.size >= 2) { try { c.send({t:'full'}); } catch (e) {} setTimeout(() => c.close(), 400); return; } conns.set(c.peer, c); });
       c.on('data', m => onHostData(c, m));
@@ -2722,7 +2742,7 @@ function leftPeer(id){
 function hostLost(full){
   if (!room) return; room = null; hostConn = null;
   for (const id of [...others.keys()]) leftPeer(id); roster.clear();
-  if (!full) sys('Le créateur a quitté la partie : vous continuez seul.');
+  if (!full) { sys('Le créateur a quitté la partie : vous continuez seul, reconnexion automatique dès son retour.'); netWas = {host:false, code:hostCode}; let n = 0; if (autoReco) clearInterval(autoReco); autoReco = setInterval(async () => { if (!netWas || room || ++n > 24) { clearInterval(autoReco); autoReco = null; return; } if (paused) return; if (await netRejoin(true)) toast('Reconnecté à la partie !'); }, 5000); }
   isHost = true; hostPeer = me.peer; for (const m of mons.values()) { m.x = m.tx; m.z = m.tz; } W.q = []; $('#rc').innerHTML = '';
 }
 /* chat vocal : chaque paire de joueurs s'appelle une fois */
@@ -2820,7 +2840,11 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab') $('#score').classList.add('hidden'); });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 const locked = () => document.pointerLockElement === renderer.domElement;
-document.addEventListener('pointerlockchange', () => { $('#pause').classList.toggle('hidden', !playing || locked() || chatOpen || !$('#chatin').classList.contains('hidden')); });
+document.addEventListener('pointerlockchange', () => { const p = playing && !locked() && !chatOpen && $('#chatin').classList.contains('hidden');
+  if (p && !paused) { paused = true; if (room) netLeave(); } else if (locked()) paused = false; updPause(); });
+$('#presume').onclick = () => { try { const r = renderer.domElement.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch (e) {} };
+$('#preco').onclick = async () => { $('#preco').disabled = true; const ok = await netRejoin(); $('#preco').disabled = false; if (ok) $('#presume').onclick(); };
+$('#pquit').onclick = () => { netLeave(); location.href = location.pathname; };
 renderer.domElement.addEventListener('mousedown', e => {
   if (!playing) return;
   if (!locked()) { try { const r = renderer.domElement.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch (er) {} if (!recOn && micWanted) startMic(); return; }
@@ -2877,7 +2901,7 @@ $('#code').addEventListener('keydown', e => { if (e.key === 'Enter') begin('join
 const clock = new THREE.Clock(); let T = 0, mmT = 0; const QA = {auto:true, n:0, t:0}; let T_unused = 0, callT = 0, levelAn = null, wdT = 0; const lvBuf = new Uint8Array(512);
 function loop(){
   requestAnimationFrame(loop);
-  const dt = Math.min(clock.getDelta(), .05); T += dt;
+  let dt = Math.min(clock.getDelta(), .05); if (paused) dt = 0; T += dt;
   WIND.value = T; SPU.uT.value = T % 1000; updateAtmosphere(dt); SKY_U.uT.value = T; if (gradePass) { GRADE.uniforms.uT.value = T % 100; GRADE.uniforms.uHurt.value *= Math.pow(.1, dt); } rune.rotation.z += dt*.1; rune.material.opacity = .6 + Math.sin(T*2)*.25;
   crystal.rotation.y += dt*.8; crystal.position.y = 4.56 + Math.sin(T*1.5)*.25; altarLight.intensity = 1.1 + Math.sin(T*3)*.15 + Math.random()*.08;
   if (Math.random() < .7) { const b = BRAZ[Math.floor(Math.random()*BRAZ.length)]; puff(b.x + (Math.random() - .5)*.5, b.y, b.z + (Math.random() - .5)*.5, Math.random() < .5 ? '#ff9a3a' : '#ffcf5a', 1, .5, b.small ? .25 : .5, .9, 2.4); }
