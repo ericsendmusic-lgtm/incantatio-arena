@@ -22,6 +22,23 @@ Les sorts se crient en anglais. La reconnaissance (Moonshine) tourne dans le nav
 
 Vous commencez avec **un sort tiré au hasard** dans votre école. Chaque parchemin ajoute **un autre sort au hasard** parmi ceux qui restent ; le grimoire liste vos sorts dans l'ordre où vous les avez appris (touches 1 à 7 = 1er à 7e sort de la liste). **L'incantation tourne** : chaque sort a un cycle de 4 phrases (ex. Blazing Orb : « Blazing Orb », « Molten Globe », « Ember Sun », « Lava Pearl »). Seule la phrase affichée dans le grimoire lance le sort ; après chaque lancer, le grimoire passe à la suivante : les 4 défilent dans un ordre mélangé, chacune une fois par tour, puis un nouveau tour recommence dans un autre ordre. Chaque phrase a ses 10 premiers essais d'apprentissage, et ce qui est appris reste propre à cette phrase.
 
+## Faiblesses des monstres
+
+Chaque monstre encaisse plus ou moins selon l'école de magie (chiffre jaune avec « ! » = faiblesse, petit chiffre gris = résistance ; le jeu l'annonce la première fois).
+
+| Monstre | Faible contre | Résiste à |
+|---|---|---|
+| Diablotin | Glace ×1,5, Esprit ×1,25 | Feu ×0,5 |
+| Goule | Esprit ×1,6, Feu ×1,25 | Ombre ×0,5 |
+| Ogre | Foudre ×1,4, Ombre ×1,25 | Glace ×0,7 |
+| Squelette archer | Esprit ×1,4, Foudre ×1,2 | Ombre ×0,6, Glace ×0,75 |
+| Araignée des cryptes | Feu ×1,6, Glace ×1,25 | Ombre ×0,75 |
+| Slime / Petit slime | Foudre ×1,6, Glace ×1,25 | Feu ×0,6 |
+| Loup spectral | Esprit ×1,5, Feu ×1,2 | Ombre ×0,5, Glace ×0,75 |
+| Golem des Ruines | Glace ×1,4 | Foudre ×0,5, Feu ×0,6 |
+| Liche Écarlate | Esprit ×1,5, Feu ×1,25 | Ombre ×0,4 |
+| Wyrm des Ombres | Esprit ×1,5, Glace ×1,25 | Ombre ×0,4 |
+
 ## Butin et survie
 
 - **Pas de régénération de vie** : seules les potions soignent. La mana remonte très lentement.
