@@ -193,7 +193,7 @@ button{cursor:pointer}
     <p id="note"></p>
     <ul class="help">
       <li><kbd>Clic</kbd> verrouiller la vue · petit trait blanc (les vrais sorts se lancent à la voix)</li>
-      <li><kbd>Z Q S D</kbd> / <kbd>W A S D</kbd> se déplacer · <kbd>Maj</kbd> courir · <kbd>Espace</kbd> sauter</li>
+      <li><kbd>Z Q S D</kbd> / <kbd>W A S D</kbd> se déplacer · <kbd>Espace</kbd> sauter</li>
       <li><kbd>M</kbd> musique on/off</li>
       <li><kbd>V</kbd> micro on/off · <b>criez le nom du sort</b>, vos amis vous entendent</li>
       <li><kbd>Clic droit</kbd> après un sort raté : le jeu retient ce qu'il a entendu pour le sort ouvert dans le grimoire · les 10 premiers sorts dits servent d'apprentissage</li>
@@ -594,7 +594,7 @@ function staffSpellColor(){ const ids = me.cls && CL[me.cls] ? CL[me.cls].spells
 function staffCastFx(id){ burstT = .38; staffKick = 1; if (id) { const c = id === 'basic' ? '#f3ead2' : (CL[clsOf(id)] || CL[me.cls]).col; STAFF_COL.set(c).multiplyScalar(1.6); } }
 function staffUpdate(dt, mvg){
   if (!staffCrys) return;
-  const run = (keys.ShiftLeft || keys.ShiftRight) && mvg;
+  const run = false;
   svX += (-110*swX - 13*svX)*dt; svY += (-110*swY - 13*svY)*dt; swX = clamp(swX + svX*dt, -.08, .08); swY = clamp(swY + svY*dt, -.06, .06);
   bobP += dt*(run ? 13 : 9)*mvg; leanZ += ((((keys.KeyD || keys.ArrowRight) ? 1 : 0) - ((keys.KeyA || keys.ArrowLeft) ? 1 : 0))*.07 - leanZ)*Math.min(1, dt*6);
   const k = staffKick, ke = k*k*(3 - 2*k), br = Math.sin(T*1.6);
@@ -2325,7 +2325,7 @@ function hostStep(dt){
     if (m.dotT > 0) { m.dotT -= dt; m.hp -= m.dotD*dt; if (m.hp <= 0) { killMon(m); continue; } }
     m.slowT = Math.max(0, m.slowT - dt); m.a = Math.max(0, m.a - dt);
     if (!tg) continue;
-    const sp = t.spd * (m.slowT > 0 ? .45 : 1);
+    const sp = t.spd * .7 /* monstres ralentis de 30 % */ * (m.slowT > 0 ? .45 : 1);
     const rg = t.ranged, shoot = rg && bd < rg.max && bd > rg.min;
     if (shoot) { m.rk = (m.rk ?? 1) - dt; if (m.rk <= 0) { m.rk = rg.cd; m.a = .5; const fl = bd/24; W.arrows.push({t:fl, peer:tg.peer, x:tg.x, z:tg.z, dmg:rg.dmg}); W.hits.push(['arrow', m.id, tg.peer]); arrowFx(m, tg.peer); } }
     else if (bd > t.reach*.85) { m.x += (tg.x-m.x)/bd*sp*dt; m.z += (tg.z-m.z)/bd*sp*dt; }
@@ -2621,7 +2621,7 @@ function loop(){
   if (playing) {
     if (me.dead) { me.rT -= dt; if (me.rT <= 0 && W.st !== 'over') respawn(); }
     else {
-      const sp = (keys.ShiftLeft || keys.ShiftRight ? 9 : 5.5), f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0), s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+      const sp = 5.5 /* plus de sprint */, f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0), s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
       const fx_ = -Math.sin(me.yaw), fz = -Math.cos(me.yaw), rx = Math.cos(me.yaw), rz = -Math.sin(me.yaw); let mx = fx_*f + rx*s, mz = fz*f + rz*s; const ml = Math.hypot(mx, mz);
       if (ml > 0) { me.x += mx/ml*sp*dt; me.z += mz/ml*sp*dt; }
       collide(me, .5, 47.5);
@@ -2632,7 +2632,7 @@ function loop(){
     camera.position.set(me.x, me.dead ? 3.2 : me.y + (me.dead ? 0 : Math.sin(T*9)*.03*(keys.KeyW ? 1 : 0)), me.z);
     camera.rotation.set(me.dead ? -.6 : me.pitch, me.yaw, 0);
     if (shake > .001) { camera.rotation.x += (Math.random() - .5)*shake*.05; camera.rotation.y += (Math.random() - .5)*shake*.05; shake *= Math.pow(.02, dt); }
-    { const run = (keys.ShiftLeft || keys.ShiftRight) && (keys.KeyW || keys.ArrowUp), fov = run ? 80 : 72; if (Math.abs(camera.fov - fov) > .05) { camera.fov += (fov - camera.fov)*Math.min(1, dt*6); camera.updateProjectionMatrix(); } }
+    { const fov = 72; if (Math.abs(camera.fov - fov) > .05) { camera.fov += (fov - camera.fov)*Math.min(1, dt*6); camera.updateProjectionMatrix(); } }
     { const mvg = (keys.KeyW || keys.KeyS || keys.KeyA || keys.KeyD) ? 1 : 0; staffKick = Math.max(0, staffKick - dt*3.2); STAFF.visible = !me.dead; staffUpdate(dt, mvg); }
     syncOthers(dt); sendPresence(dt); computeHost();
     callT -= dt; if (callT <= 0) { callT = 1; ensureCalls(); }

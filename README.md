@@ -98,7 +98,7 @@ Sur la page du dépôt : **Add file** → **Upload files**, glisse le nouveau `i
 |---|---|
 | Clic gauche | Verrouiller la vue · petit trait blanc (attaque de base) |
 | Z Q S D / W A S D | Se déplacer |
-| Maj / Espace | Courir / sauter |
+| Espace | Sauter |
 | V | Couper ou rallumer le micro (voix + sorts) |
 | Clic droit | Après un raté : apprendre le mot entendu au sort ouvert |
 | Crier le nom du sort | Lancer le sort |
