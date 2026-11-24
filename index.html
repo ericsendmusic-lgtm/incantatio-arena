@@ -2135,6 +2135,11 @@ const incAll = id => INCV[id] || [(spellOf(id) || {}).n || ''];
 const lkeysAll = id => incAll(id).map(v => v === (spellOf(id) || {}).n ? id : id + '|' + norm(v));
 const incOf = id => INC_SEL[id] || (spellOf(id) || {}).n || '';
 /* cycle : après chaque lancer, la prochaine phrase est tirée au hasard parmi les autres du sort */
+const INC_BAG = {};
+function rotInc(id){ const v = INCV[id]; if (!v || v.length < 2) return; let b = INC_BAG[id];
+  if (!b || !b.length) { b = INC_BAG[id] = v.filter(x => x !== incOf(id)).sort(() => Math.random() - .5); b.push(incOf(id)); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*i); [b[i], b[j]] = [b[j], b[i]]; } if (b[0] === incOf(id)) b.push(b.shift()); }
+  INC_SEL[id] = b.shift(); }
+/* cycle : après chaque lancer, la prochaine phrase est tirée au hasard parmi les autres du sort */
 function rotInc(id){ const v = INCV[id]; if (!v || v.length < 2) return; const o = v.filter(x => x !== incOf(id)); INC_SEL[id] = o[Math.floor(Math.random()*o.length)]; }
 function pickInc(id){ const v = INCV[id]; INC_SEL[id] = v ? v[Math.floor(Math.random()*v.length)] : (spellOf(id) || {}).n; return INC_SEL[id]; }
 /* ce qu'on a appris pour une incantation ne sert qu'à cette incantation */
