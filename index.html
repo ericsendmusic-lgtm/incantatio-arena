@@ -2308,7 +2308,7 @@ function startWave(){
 }
 function spawnMon(type){
   const a = Math.random()*Math.PI*2, np = Math.max(1, players().length + (me.dead ? 1 : 0));
-  const mx = MT[type].hp * (1 + .12*(W.w-1)) * (.6 + .4*np);
+  const mx = MT[type].hp * .6 * (1 + .08*(W.w-1)) * (.6 + .4*np); /* équilibrage : monstres 40 % moins résistants, montée plus douce */
   const m = {id:W.nid++, type, x:Math.cos(a)*46, z:Math.sin(a)*46, hp:mx, max:Math.round(mx), atk:0, a:0, slowT:0, dotT:0, sk:4};
   m.tx = m.x; m.tz = m.z; m.g = monsterMesh(type); mons.set(m.id, m);
 }
@@ -2342,7 +2342,7 @@ function hostStep(dt){
     room.emit('world', pk).catch(()=>{}); }
   else if (!room) W.hits.length = 0;
 }
-function hitPlayer(peer, dmg){ if (peer === me.peer || peer === 'me') takeDamage(dmg, null); else W.hits.push([peer, dmg]); }
+function hitPlayer(peer, dmg){ dmg = Math.max(1, Math.round(dmg*.65)); /* équilibrage : coups des monstres −35 % */ if (peer === me.peer || peer === 'me') takeDamage(dmg, null); else W.hits.push([peer, dmg]); }
 function arrowFx(m, peer){
   const o = peer === me.peer || peer === 'me' ? {x:me.x, z:me.z} : others.get(peer) ? {x:others.get(peer).g.position.x, z:others.get(peer).g.position.z} : null; if (!o) return;
   const a = new THREE.Mesh(geo('arrow', () => new THREE.CylinderGeometry(.025, .025, 1.1, 4).rotateX(Math.PI/2)), glowMat(0xbfefff)); scene.add(a);
