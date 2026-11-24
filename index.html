@@ -150,6 +150,7 @@ button{cursor:pointer}
       <li><kbd>Clic</kbd> verrouiller la vue · petit trait blanc (les vrais sorts se lancent à la voix)</li>
       <li><kbd>Z Q S D</kbd> / <kbd>W A S D</kbd> se déplacer · <kbd>Maj</kbd> courir · <kbd>Espace</kbd> sauter</li>
       <li><kbd>V</kbd> micro on/off · <b>criez le nom du sort</b>, vos amis vous entendent</li>
+      <li><kbd>Clic droit</kbd> maintenu : parlez puis relâchez pour lancer (pratique avec du bruit)</li>
       <li><kbd>Entrée</kbd> écrire une incantation · <kbd>T</kbd> chat de salle</li>
       <li><kbd>Molette</kbd> / <kbd>1–7</kbd> feuilleter le grimoire</li>
       <li><kbd>Tab</kbd> scores · le créateur partage son code, 3 sorciers max</li>
@@ -407,11 +408,12 @@ function matchSpell(text){
   lastNear = best ? {id:best, s:bs} : null;
   return bs >= .66 ? {id:best, s:bs} : null;
 }
-let uttCast = false, micWanted = true, prevPart = null, lastRes = 0; const heard = {n:'', t:-9};
+let pttOn = false, pttText = '', pttCast = false, uttCast = false, micWanted = true, prevPart = null, lastRes = 0; const heard = {n:'', t:-9};
 function onSpeech(raw, final){
   const text = Array.isArray(raw) ? raw[0] : raw, all = Array.isArray(raw) ? raw.join(' ') : raw;
   if (!playing) return;
   if (chatOpen) { $('#chatin').value = text; if (final) sendChat(); return; }
+  pttText = (pttText && !final ? '' : '') + all; pttCast = pttCast || false;
   $('#bksaid').textContent = '« ' + text + ' »'; $('#mict').textContent = 'J\'entends : ' + text.slice(-28);
   if (!uttCast) { const m = matchSpell(all); if (m && heard.n === spellOf(m.id).n && now() - heard.t < 3) { if (final) uttCast = false; return; } const quick = m && (m.s >= .8 || (prevPart && prevPart.id === m.id)); prevPart = m; if (final) prevPart = null; if (m && (final || quick)) { uttCast = true; tryCast(m.id); } else if (final) fizzle(); }
   if (final) uttCast = false;
@@ -485,6 +487,7 @@ function bookFlash(){ const b = $('#book'); b.classList.remove('flash'); void b.
 const now = () => performance.now()/1000;
 function fizzle(){ $('#bkhint').textContent = lastNear && lastNear.s > .4 ? 'Presque ! « ' + spellOf(lastNear.id).n + ' » à ' + Math.round(lastNear.s*100) + ' %, répétez plus distinctement.' : 'Le sort se dissipe… parlez plus clairement.'; }
 function tryCast(id){
+  if (pttOn) pttCast = true;
   if (me.dead || !known.includes(id)) return;
   const sp = spellOf(id); if ((cds[id] || 0) > now()) { toast(sp.n + ' : pas encore prêt'); return; }
   if (me.mp < sp.mana) { toast('Pas assez de mana'); return; }
@@ -842,6 +845,12 @@ renderer.domElement.addEventListener('mousedown', e => {
   if (!locked()) { try { const r = renderer.domElement.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch (er) {} if (!recOn && micWanted) startMic(); return; }
   if (e.button === 0 && !me.dead && (cds.basic || 0) < now()) { cds.basic = now() + BASIC.cd; castOut('basic'); }
 });
+/* clic droit maintenu = « appuyer pour parler » : au relâchement, on lance le sort entendu même si le bruit empêche la phrase de se terminer */
+renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
+addEventListener('mousedown', e => { if (!playing || e.button !== 2 || !locked()) return; pttOn = true; pttText = ''; pttCast = false; if (!recOn && micWanted) startMic(); $('#mict').textContent = 'Parlez… (relâchez pour lancer)'; $('#mic').classList.add('on'); });
+addEventListener('mouseup', e => { if (e.button !== 2 || !pttOn) return; pttOn = false;
+  if (!pttCast) { if (pttText) { const m = matchSpell(pttText); if (m) { uttCast = true; tryCast(m.id); } else fizzle(); } else $('#bkhint').textContent = 'Je n\'ai rien entendu : maintenez le clic droit pendant que vous parlez.'; }
+  pttText = ''; });
 addEventListener('mousemove', e => { if (!locked()) return; me.yaw -= e.movementX*.0022; me.pitch = clamp(me.pitch - e.movementY*.0022, -1.45, 1.45); });
 addEventListener('wheel', e => { if (!playing) return; page = clamp(page + Math.sign(e.deltaY), 0, CL[me.cls].spells.length-1); renderBook(); }, {passive:true});
 $('#bklist').addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if (li) { page = +li.dataset.i; renderBook(); } });
