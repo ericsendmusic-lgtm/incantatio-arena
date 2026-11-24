@@ -350,9 +350,9 @@ function monsterMesh(t){
   scene.add(g); return g;
 }
 function dropMesh(t){
-  const g = new THREE.Group(), col = t === 'tome' ? 0xc98cff : t === 'hp' ? 0xff4a5a : 0x4ab0ff;
+  const g = new THREE.Group(), col = t === 'tome' ? 0xffc93c : t === 'hp' ? 0x4dff7a : 0x3f9dff; /* parchemin doré, vie verte, mana bleue */
   const item = new THREE.Group(); g.add(item);
-  if (t === 'tome') { const c = new THREE.Mesh(new THREE.BoxGeometry(.7,.18,.9), new THREE.MeshStandardMaterial({color:0x5a2c19, emissive:0x2a0e40})); item.add(c); const p = new THREE.Mesh(new THREE.BoxGeometry(.62,.2,.8), new THREE.MeshStandardMaterial({color:0xeadbb9, emissive:0x3a2a10})); p.position.x = .03; item.add(p); }
+  if (t === 'tome') { const c = new THREE.Mesh(new THREE.BoxGeometry(.7,.18,.9), new THREE.MeshStandardMaterial({color:0x5a2c19, emissive:0x3a2600})); item.add(c); const p = new THREE.Mesh(new THREE.BoxGeometry(.62,.2,.8), new THREE.MeshStandardMaterial({color:0xf3e2b0, emissive:0x5a4010})); p.position.x = .03; item.add(p); }
   else { const m = new THREE.Mesh(t === 'hp' ? new THREE.SphereGeometry(.28,12,12) : new THREE.OctahedronGeometry(.32), new THREE.MeshStandardMaterial({color:col, emissive:col, emissiveIntensity:.7})); item.add(m); }
   /* halo lumineux au-dessus de l'objet */
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex, color:col, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.9}));
