@@ -47,6 +47,7 @@ button{cursor:pointer}
 .btn.ghost{background:transparent;color:#eadbb9}
 .help{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 18px;font-size:14px;color:#bfb39b;margin:0;padding:0;list-style:none}
 .help kbd{font-family:Cinzel,serif;font-size:12px;border:1px solid rgba(234,219,185,.35);border-radius:4px;padding:1px 6px;color:#eadbb9}
+#mtest{margin:0;font-size:15px;color:#eadbb9;max-width:60ch}#mtest b{color:#7dff9c}#mtest i{color:#ff8a7a;font-style:normal}
 #note{font-size:14px;color:#ffcf8a;min-height:1.4em;margin:0}
 @media(max-width:760px){.classes{grid-template-columns:repeat(2,minmax(0,1fr))}.cls{min-height:0}}
 
@@ -142,9 +143,10 @@ button{cursor:pointer}
       <button class="btn" id="go">Rejoindre</button>
       <button class="btn ghost" id="solo">Jouer seul</button>
     </div>
+    <div class="row"><button class="btn ghost" id="mtestb">Tester le micro</button><p id="mtest">Dites « Fireball » pour vérifier que le jeu vous entend.</p></div>
     <p id="note"></p>
     <ul class="help">
-      <li><kbd>Clic</kbd> verrouiller la vue · trait magique de base</li>
+      <li><kbd>Clic</kbd> verrouiller la vue · petit trait blanc (les vrais sorts se lancent à la voix)</li>
       <li><kbd>Z Q S D</kbd> / <kbd>W A S D</kbd> se déplacer · <kbd>Maj</kbd> courir · <kbd>Espace</kbd> sauter</li>
       <li><kbd>V</kbd> micro on/off · <b>criez le nom du sort</b>, vos amis vous entendent</li>
       <li><kbd>Entrée</kbd> écrire une incantation · <kbd>T</kbd> chat de salle</li>
@@ -378,7 +380,7 @@ function onSpeech(raw, final){
   const text = Array.isArray(raw) ? raw[0] : raw, all = Array.isArray(raw) ? raw.join(' ') : raw;
   if (!playing) return;
   if (chatOpen) { $('#chatin').value = text; if (final) sendChat(); return; }
-  $('#bksaid').textContent = '« ' + text + ' »';
+  $('#bksaid').textContent = '« ' + text + ' »'; $('#mict').textContent = 'J\'entends : ' + text.slice(-28);
   if (!uttCast) { const m = matchSpell(all); if (m && heard.n === spellOf(m.id).n && now() - heard.t < 3) { if (final) uttCast = false; return; } if (m && (final || m.s >= .85)) { uttCast = true; tryCast(m.id); } else if (final) fizzle(); }
   if (final) uttCast = false;
 }
@@ -388,10 +390,35 @@ function startMic(){
   if (!rec) { rec = new SR(); rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 3;
     rec.onresult = e => { for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i], alts = []; for (let k = 0; k < r.length; k++) alts.push(r[k].transcript); onSpeech(alts, r.isFinal); } };
     rec.onend = () => { recOn = false; setMic('off'); if (micWanted && playing) setTimeout(startMic, 250); };
-    rec.onerror = e => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { micWanted = false; toast('Micro refusé : tapez Entrée pour écrire vos sorts'); } }; }
+    rec.onerror = e => { const m = srError(e.error); if (m) { micWanted = false; sys(m); toast(m); $('#mict').textContent = 'Reconnaissance vocale en panne · voir le chat'; } }; }
   rec.lang = $('#lang').value;
   try { rec.start(); recOn = true; setMic('on'); } catch (e) {}
 }
+function srError(code){
+  if (code === 'not-allowed' || code === 'service-not-allowed') return 'Micro bloqué : autorisez-le avec l\'icône micro dans la barre d\'adresse, puis rechargez la page.';
+  if (code === 'network') return 'Ce navigateur ne sait pas reconnaître la voix (Brave, Opera, appli Claude…). Ouvrez le jeu dans Google Chrome ou Microsoft Edge.';
+  if (code === 'audio-capture') return 'Aucun micro trouvé : vérifiez qu\'il est branché et choisi comme micro par défaut.';
+  if (code === 'language-not-supported') return 'Langue du micro non prise en charge : essayez l\'autre langue dans le menu.';
+  return '';
+}
+const BADB = navigator.brave || window.opr || /OPR\/|Electron|Claude/i.test(navigator.userAgent);
+if (SR && BADB) $('#note').textContent += ' Attention : ce navigateur bloque souvent la reconnaissance vocale. Pour crier vos sorts, utilisez Google Chrome ou Microsoft Edge.';
+let testRec = null;
+$('#mtestb').onclick = () => {
+  const out = $('#mtest');
+  if (!SR) { out.innerHTML = '<i>Reconnaissance vocale absente de ce navigateur : utilisez Google Chrome ou Microsoft Edge.</i>'; return; }
+  if (testRec) { try { testRec.stop(); } catch (e) {} testRec = null; return; }
+  const names = CL[pickCls].spells.map(s => s.n);
+  testRec = new SR(); testRec.lang = $('#lang').value; testRec.interimResults = true; testRec.continuous = true; testRec.maxAlternatives = 3;
+  out.textContent = 'Parlez… (dites « ' + names[0] + ' »)'; $('#mtestb').textContent = 'Arrêter le test';
+  testRec.onresult = e => { const r = e.results[e.results.length - 1], alts = []; for (let k = 0; k < r.length; k++) alts.push(r[k].transcript);
+    const w = norm(alts.join(' ')).split(' ').join(''), key = norm(names[0]).replace(/ /g, ''); const hit = w.includes(key) || (1 - lev(norm(alts[0]).replace(/ /g, ''), key) / Math.max(key.length, 1)) >= .66;
+    out.innerHTML = 'J\'entends : « ' + esc(alts[0]) + ' »' + (hit ? ' <b>→ ' + esc(names[0]) + ' reconnu, ça marche !</b>' : ''); };
+  testRec.onerror = e => { const m = srError(e.error); if (m) out.innerHTML = '<i>' + esc(m) + '</i>'; else if (e.error === 'no-speech') out.textContent = 'Je n\'entends rien : parlez plus fort ou vérifiez le micro choisi par Windows.'; };
+  testRec.onend = () => { testRec = null; $('#mtestb').textContent = 'Tester le micro'; };
+  try { testRec.start(); } catch (e) { out.innerHTML = '<i>Impossible de démarrer le micro.</i>'; }
+  setTimeout(() => { if (testRec) try { testRec.stop(); } catch (e) {} }, 12000);
+};
 function toggleMic(){ micWanted = !micWanted; if (localStream) localStream.getAudioTracks().forEach(t => t.enabled = micWanted); if (!micWanted) { if (rec) try { rec.stop(); } catch (e) {} setMic('off'); } else startMic(); toast(micWanted ? 'Micro activé' : 'Micro coupé : vos amis ne vous entendent plus'); }
 
 /* hearing other wizards shout */
@@ -454,7 +481,7 @@ function applyCast(data, caster, mine){
   if (!data || typeof data !== 'object') return;
   const sp = spellOf(data.s); if (!sp) return;
   const o = data.o, d = data.d; if (!Array.isArray(o) || !Array.isArray(d) || ![...o, ...d].every(fin)) return;
-  const cls = clsOf(data.s) || (others.get(caster) || {}).cls || me.cls, col = CL[cls] ? CL[cls].col : '#fff';
+  const cls = clsOf(data.s) || (others.get(caster) || {}).cls || me.cls, col = data.s === 'basic' ? '#f3ead2' : CL[cls] ? CL[cls].col : '#fff';
   const ov = new THREE.Vector3(o[0], o[1], o[2]), dv = new THREE.Vector3(d[0], d[1], d[2]).normalize();
   const fxd = {slow:sp.slow, dot:sp.dot, push:sp.push};
   const myDist = Math.hypot(me.x - o[0], me.z - o[2]);
