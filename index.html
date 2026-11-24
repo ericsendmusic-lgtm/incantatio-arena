@@ -203,7 +203,7 @@ button{cursor:pointer}
     <div class="row">
       <label class="field">Nom de sorcier<input id="nm" maxlength="16" autocomplete="off"></label>
       <label class="field">Code pour rejoindre<input id="code" maxlength="8" autocomplete="off" placeholder="ex. k7f2q"></label>
-      <label class="field">Reconnaissance vocale<select id="eng"><option value="moonshine">Moonshine (rapide, tous navigateurs)</option><option value="browser">Navigateur (Chrome/Edge)</option></select></label>
+      <label class="field">Reconnaissance vocale<select id="eng"><option value="vosk">Vosk — phrases du jeu (recommandé)</option><option value="moonshine">Moonshine (rapide, tous navigateurs)</option><option value="browser">Navigateur (Chrome/Edge)</option></select></label>
       <label class="field">Accent<select id="lang"><option value="fr-FR">Accent français</option><option value="en-US">Anglais standard</option></select></label>
       <label class="field">Graphismes<select id="gfx"><option value="auto">Auto (fluide)</option><option value="hi">Élevés</option><option value="low">Légers</option></select></label>
       <div class="field">Mode<div class="seg" id="mode"><button data-m="coop" aria-pressed="true">Coop</button><button data-m="pvp" aria-pressed="false">Chacun pour soi</button></div></div>
@@ -1868,7 +1868,7 @@ function onSpeech(raw, final, lax){
 }
 /* ---------- Whisper : vrai modèle de reconnaissance vocale, exécuté dans le navigateur ---------- */
 const engine = () => $('#eng').value === 'browser' && SR ? 'browser' : 'whisper';
-const aiModel = () => $('#eng').value === 'whisper' ? 'whisper' : 'moonshine';
+const aiModel = () => $('#eng').value === 'whisper' ? 'whisper' : $('#eng').value === 'vosk' ? 'vosk' : 'moonshine';
 let asrModel = '', asrW = null, asrReady = false, asrErr = '', asrPct = 0, asrDev = '', asrBusy = false, asrNext = null, asrId = 0, testing = false;
 const asrFiles = {};
 const WORKER = `
@@ -1890,6 +1890,7 @@ self.onmessage = async e => {
 };`;
 function loadASR(){
   if (asrW || engine() !== 'whisper') return;
+  if (aiModel() === 'vosk') { loadVosk(); return; }
   try { asrW = new Worker(URL.createObjectURL(new Blob([WORKER], {type:'text/javascript'})), {type:'module'}); }
   catch (e) { asrErr = 'worker'; asrStatus(); return; }
   asrW.onmessage = e => { const d = e.data;
@@ -1901,7 +1902,7 @@ function loadASR(){
   asrW.postMessage({type:'load', model:aiModel()}); asrModel = aiModel();
 }
 function asrStatus(){
-  const t = asrErr ? 'Le modèle vocal n\'a pas pu se charger : vérifiez votre connexion, ou choisissez « Navigateur » dans Chrome/Edge.' : asrReady ? 'Modèle vocal prêt : cliquez sur « Tester le micro » ou lancez une partie.' : 'Téléchargement du modèle vocal… ' + asrPct + ' % (une seule fois)';
+  const t = asrModel === 'vosk' && !asrErr ? (asrReady ? 'Vosk prêt : il ne reconnaît que les phrases du jeu. Cliquez sur « Tester le micro » ou lancez une partie.' : 'Téléchargement de Vosk (43 Mo, une seule fois)… ' + asrPct + ' %') : asrErr ? 'Le modèle vocal n\'a pas pu se charger : vérifiez votre connexion, ou choisissez « Navigateur » dans Chrome/Edge.' : asrReady ? 'Modèle vocal prêt : cliquez sur « Tester le micro » ou lancez une partie.' : 'Téléchargement du modèle vocal… ' + asrPct + ' % (une seule fois)';
   if (!testing) $('#mtest').textContent = t;
   if (playing) setMic(micWanted ? 'on' : 'off');
 }
@@ -1925,6 +1926,7 @@ function setupCapture(){
 function onChunk(ch){
   if (engine() !== 'whisper' || !asrReady || !micWanted || !(playing || testing || training)) return;
   const c = new Float32Array(ch), dur = c.length / capRate; let q = 0; for (let i = 0; i < c.length; i++) q += c[i]*c[i]; const rms = Math.sqrt(q / c.length);
+  if (asrModel === 'vosk' && vRec) { try { vRec.acceptWaveformFloat(c, capRate); } catch (e) {} }
   if (pttOn) { pttBuf.push(c); return; }
   if (!vadOn) {
     preRoll.push(c); if (preRoll.length > 6) preRoll.shift();
@@ -1933,7 +1935,7 @@ function onChunk(ch){
   } else {
     vadBuf.push(c); vadLen += dur;
     if (rms < Math.max(vadFloor*2.2, .009)) vadSil += dur; else vadSil = 0;
-    if (vadSil > (asrModel === 'whisper' ? .38 : .26) || vadLen > 3) { vadOn = false; if (vadLen - vadSil > .18) sendASR(vadBuf); vadBuf = []; }
+    if (vadSil > (asrModel === 'whisper' ? .38 : .26) || vadLen > 3) { vadOn = false; if (vadLen - vadSil > .18) { if (asrModel === 'vosk') voskUtt(vadBuf, vadLen - vadSil); else sendASR(vadBuf); } vadBuf = []; }
   }
 }
 function to16k(chunks){
@@ -1949,10 +1951,84 @@ function sendASR(chunks){
   if (playing) $('#mict').textContent = 'Déchiffrage de l\'incantation…';
   asrW.postMessage({type:'asr', id:++asrId, audio, lang:$('#lang').value.startsWith('fr') ? 'french' : 'english'}, [audio.buffer]);
 }
-$('#eng').addEventListener('change', () => { if (engine() === 'whisper' && asrW && asrModel !== aiModel()) { asrW.terminate(); asrW = null; asrReady = false; asrErr = ''; asrPct = 0; asrBusy = false; for (const k in asrFiles) delete asrFiles[k]; } if (engine() === 'whisper') loadASR(); else $('#mtest').textContent = 'Reconnaissance du navigateur : dites le premier sort de votre classe avec le bouton de test.'; });
-try { const s3 = JSON.parse(localStorage.getItem('incantatio') || '{}'); if (s3.e2 && !(s3.e2 === 'browser' && !SR)) $('#eng').value = s3.e2; } catch (e) {}
+$('#eng').addEventListener('change', () => { if (asrModel === 'vosk' && aiModel() !== 'vosk') { asrReady = false; asrPct = 0; asrModel = ''; } if (engine() === 'whisper' && asrW && asrModel !== aiModel()) { asrW.terminate(); asrW = null; asrReady = false; asrErr = ''; asrPct = 0; asrBusy = false; for (const k in asrFiles) delete asrFiles[k]; } if (engine() === 'whisper') loadASR(); else $('#mtest').textContent = 'Reconnaissance du navigateur : dites le premier sort de votre classe avec le bouton de test.'; });
+try { const s3 = JSON.parse(localStorage.getItem('incantatio') || '{}'); if (s3.v3 && s3.e2 && !(s3.e2 === 'browser' && !SR)) $('#eng').value = s3.e2; } catch (e) {}
 setTimeout(loadASR, 300);
 
+/* ===================== VOSK : reconnaissance à liste fermée + empreintes de voix ===================== */
+/* Vosk ne peut répondre que l'une des phrases du jeu (ou « inconnu »). Les 10 essais d'apprentissage
+   enregistrent aussi l'empreinte de votre voix (MFCC), comparée par alignement (DTW) quand Vosk hésite. */
+const VSPLIT = {frostbolt:'frost bolt', hoarfrost:'hoar frost', necrotic:'neck rot tick', pyroclasm:'pyro class um', soulfire:'soul fire', stormcaller:'storm caller', thunderstrike:'thunder strike'};
+const vForm = ph => String(ph).toLowerCase().replace(/[^a-z' ]/g, ' ').split(/\s+/).filter(Boolean).map(w => VSPLIT[w] || w).join(' ');
+let vModel = null, vRec = null, vGram = '', vForm2Ph = new Map(), vLoading = false;
+function voskPhrases(){ const out = new Set(['Healing']);
+  const ids = playing ? known : (CL[pickCls] ? CL[pickCls].spells.map((_, i) => pickCls + ':' + i) : []);
+  for (const id of ids) for (const v of (INCV[id] || [(spellOf(id) || {}).n])) if (v) out.add(v);
+  if (!playing && CL[pickCls]) for (const sp of CL[pickCls].spells) out.add(sp.n);
+  if (typeof DUEL_UI !== 'undefined' && DUEL_UI && !DUEL_UI.done) out.add(DUEL_UI.phrase);
+  return [...out]; }
+function voskGrammar(){ if (!vModel) return; const ph = voskPhrases(), m = new Map(); for (const p of ph) m.set(vForm(p), p);
+  const g = JSON.stringify([...m.keys(), '[unk]']); if (g === vGram && vRec && vRec.cap === capRate) return; vGram = g; vForm2Ph = m;
+  try { if (vRec) vRec.remove(); } catch (e) {}
+  vRec = new vModel.KaldiRecognizer(capRate, g); vRec.cap = capRate; vRec.setWords(true);
+  vRec.on('result', msg => onVosk(msg.result || {})); }
+function loadVosk(){
+  if (vModel) { asrModel = 'vosk'; asrReady = true; voskGrammar(); asrStatus(); return; }
+  if (vLoading) return; vLoading = true; asrModel = 'vosk'; asrStatus();
+  const s = document.createElement('script'); s.src = 'vosk/vosk.js';
+  s.onerror = () => { asrErr = 'vosk'; asrStatus(); };
+  s.onload = async () => {
+    try { const r = await fetch('vosk/model.tar.gz'); if (!r.ok) throw new Error('model ' + r.status);
+      const tot = +r.headers.get('content-length') || 43362859, rd = r.body.getReader(), parts = []; let got = 0;
+      for (;;) { const {done, value} = await rd.read(); if (done) break; parts.push(value); got += value.length; asrPct = Math.min(99, Math.round(got/tot*100)); if (got % 8 < 1 || Math.random() < .05) asrStatus(); }
+      const url = URL.createObjectURL(new Blob(parts, {type:'application/gzip'}));
+      vModel = await Vosk.createModel(url); vModel.setLogLevel && vModel.setLogLevel(-1);
+      asrReady = true; asrPct = 100; voskGrammar(); asrStatus(); }
+    catch (e) { console.warn(e); asrErr = 'vosk'; asrStatus(); } };
+  document.head.appendChild(s); }
+
+/* --- empreintes de voix : MFCC + DTW --- */
+const MEL = (() => { const N = 512, sr = 16000, nb = 24, mel = f => 1127*Math.log(1 + f/700), imel = m => 700*(Math.exp(m/1127) - 1), lo = mel(80), hi = mel(7600), pts = [];
+  for (let i = 0; i < nb + 2; i++) pts.push(Math.floor((N + 1)*imel(lo + (hi - lo)*i/(nb + 1))/sr));
+  const fb = []; for (let b = 1; b <= nb; b++) { const w = new Float32Array(N/2 + 1); for (let k = pts[b - 1]; k < pts[b]; k++) w[k] = (k - pts[b - 1])/(pts[b] - pts[b - 1] || 1); for (let k = pts[b]; k < pts[b + 1]; k++) w[k] = (pts[b + 1] - k)/(pts[b + 1] - pts[b] || 1); fb.push(w); } return fb; })();
+function fftMag(re){ const n = re.length, im = new Float32Array(n); for (let i = 1, j = 0; i < n; i++) { let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; } }
+  for (let len = 2; len <= n; len <<= 1) { const a = -2*Math.PI/len, wr = Math.cos(a), wi = Math.sin(a); for (let i = 0; i < n; i += len) { let cr = 1, ci = 0; for (let k = 0; k < len/2; k++) { const ur = re[i + k], ui = im[i + k], vr = re[i + k + len/2]*cr - im[i + k + len/2]*ci, vi = re[i + k + len/2]*ci + im[i + k + len/2]*cr; re[i + k] = ur + vr; im[i + k] = ui + vi; re[i + k + len/2] = ur - vr; im[i + k + len/2] = ui - vi; const t = cr*wr - ci*wi; ci = cr*wi + ci*wr; cr = t; } } }
+  const m = new Float32Array(n/2 + 1); for (let i = 0; i <= n/2; i++) m[i] = re[i]*re[i] + im[i]*im[i]; return m; }
+function mfcc(x){ const out = []; let emax = 0; const frames = [];
+  for (let s = 0; s + 400 <= x.length; s += 160) { const f = new Float32Array(512); let e = 0; for (let i = 0; i < 400; i++) { const v = (x[s + i] - .97*(x[s + i - 1] || 0))*(.54 - .46*Math.cos(2*Math.PI*i/399)); f[i] = v; e += v*v; } frames.push([f, e]); emax = Math.max(emax, e); }
+  for (const [f, e] of frames) { if (e < emax*.002) continue; const p = fftMag(f), lm = MEL.map(w => { let a = 1e-9; for (let k = 0; k < w.length; k++) a += w[k]*p[k]; return Math.log(a); }), c = [];
+    for (let k = 1; k <= 12; k++) { let a = 0; for (let b = 0; b < lm.length; b++) a += lm[b]*Math.cos(Math.PI*k*(b + .5)/lm.length); c.push(a); } out.push(c); }
+  if (!out.length) return null; const mu = new Array(12).fill(0); for (const c of out) for (let k = 0; k < 12; k++) mu[k] += c[k]/out.length;
+  return out.filter((_, i) => i % 2 === 0).map(c => c.map((v, k) => Math.round(clamp((v - mu[k])*4, -127, 127)))); }
+function dtw(a, b){ const n = a.length, m = b.length; if (!n || !m || n > 3*m || m > 3*n) return 1e9; let prev = new Float32Array(m + 1).fill(1e9), cur = new Float32Array(m + 1); prev[0] = 0;
+  for (let i = 1; i <= n; i++) { cur.fill(1e9); for (let j = 1; j <= m; j++) { let d = 0; for (let k = 0; k < 12; k++) { const t = a[i - 1][k] - b[j - 1][k]; d += t*t; } d = Math.sqrt(d); cur[j] = d + Math.min(prev[j], cur[j - 1], prev[j - 1]); } [prev, cur] = [cur, prev]; }
+  return prev[m]/(n + m); }
+let VTPL = {}; try { VTPL = JSON.parse(localStorage.getItem('incantatio-tpl') || '{}') || {}; } catch (e) { VTPL = {}; }
+const tkey = ph => norm(ph);
+function storeTpl(ph, f){ if (!f || f.length < 6) return; const k = tkey(ph), a = VTPL[k] = VTPL[k] || []; a.unshift(f); a.length = Math.min(a.length, 6);
+  try { localStorage.setItem('incantatio-tpl', JSON.stringify(VTPL)); } catch (e) { for (const kk of Object.keys(VTPL).slice(0, 5)) delete VTPL[kk]; } }
+function tplMatch(f, cands){ if (!f) return null; let best = null, bd = 1e9, second = 1e9;
+  for (const ph of cands) { const T = VTPL[tkey(ph)]; if (!T || !T.length) continue; let d = 1e9; for (const t of T) d = Math.min(d, dtw(f, t)); if (d < bd) { second = bd; bd = d; best = ph; } else if (d < second) second = d; }
+  if (!best) return null; const self = VTPL[tkey(best)]; let thr = 40;
+  if (self.length >= 2) { const ds = []; for (let i = 0; i < self.length; i++) for (let j = i + 1; j < self.length; j++) ds.push(dtw(self[i], self[j])); ds.sort((x, y) => x - y); thr = ds[Math.floor(ds.length/2)]*1.45; }
+  return bd < thr && bd < second*.88 ? {ph:best, d:bd} : null; }
+let lastUtt = null;
+function voskUtt(chunks, dur){ try { lastUtt = {f:mfcc(to16k(chunks)), t:now(), dur}; } catch (e) { lastUtt = null; } }
+/* phrases candidates : celles à crier maintenant (grimoire) + Healing + Mot de pouvoir */
+function liveCands(){ const c = ['Healing']; for (const id of known) c.push(incOf(id)); if (DUEL_UI && !DUEL_UI.done) c.push(DUEL_UI.phrase); return c; }
+function onVosk(res){
+  const t = String(res.text || '').replace(/\[unk\]/g, '').trim(), ph = vForm2Ph.get(t) || null;
+  const conf = res.result && res.result.length ? res.result.reduce((a, w) => a + (w.conf || 0), 0)/res.result.length : 1;
+  setTimeout(() => {
+    const u = lastUtt && now() - lastUtt.t < 1.6 ? lastUtt : null; lastUtt = null;
+    let say = ph;
+    if (playing && u) { const tm = tplMatch(u.f, liveCands()); if ((!say || conf < .55) && tm) say = tm.ph; }
+    if (playing && u && !say && !voiceHook) { const curS = me.cls + ':' + page; if (known.includes(curS) && calLeft(curS) > 0 && u.dur > .25) say = incOf(curS); }
+    if (playing && u && say) { const curS = me.cls + ':' + page; if (say === incOf(curS) && calLeft(curS) > 0) storeTpl(say, u.f); else if (ph && conf > .8) storeTpl(say, u.f); }
+    if (!say) { if (playing && u && u.dur > .25) { lastFail = {x:'', t:now(), utt:u}; fizzle(); } else if (testing) onWhisper(''); return; }
+    onWhisper(say); }, 120); }
+
+setInterval(() => { try { if (vModel) voskGrammar(); } catch (e) {} }, 1000);
 function setMic(s){ if (engine() === 'whisper') { if (asrErr) s = 'na'; else if (!asrReady) s = 'load'; } else if (!SR) s = 'na'; const el = $('#mic'); el.classList.toggle('on', s === 'on'); $('#mict').textContent = s === 'load' ? 'Modèle vocal : ' + asrPct + ' %…' : s === 'on' ? 'Micro actif · criez votre sort' : s === 'na' ? 'Sorts au clavier : Entrée pour écrire' : micWanted ? 'Micro en pause…' : 'Micro coupé · V pour l\'activer'; }
 function startMic(){
   if (engine() === 'whisper') { setMic(micWanted ? 'on' : 'off'); return; }
@@ -2147,21 +2223,33 @@ const now = () => performance.now()/1000;
 let calib = 0; /* remplacé par l'apprentissage par sort */
 /* incantations : pour un même sort, la phrase à crier est tirée au hasard quand il entre dans le grimoire */
 const INCV = {
-  'fire:0':['Fireball','Ignis Sphaera','Burning Sphere','Flame Strike'], 'fire:1':['Hellfire','Infernal Blaze','Abyss Flames','Brimstone'],
-  'fire:2':['Blazing Orb','Molten Globe','Ember Sun','Lava Pearl'], 'fire:3':['Solar Flare','Sunburst','Wrath of Sol','Daystar'],
-  'fire:4':['Cinder Storm','Ash Rain','Ember Tempest','Smoldering Sky'], 'fire:5':['Inferno Blast','Dragon Breath','Firewall','Searing Wave'],
+  'fire:0':['Fireball','Flame Sphere','Burning Sphere','Flame Strike'],
+  'fire:1':['Hellfire','Infernal Blaze','Abyss Flames','Brimstone'],
+  'fire:2':['Blazing Orb','Molten Globe','Ember Sun','Lava Pearl'],
+  'fire:3':['Solar Flare','Sunburst','Wrath of the Sun','Daystar'],
+  'fire:4':['Cinder Storm','Ash Rain','Ember Tempest','Smoldering Sky'],
+  'fire:5':['Inferno Blast','Dragon Breath','Firewall','Searing Wave'],
   'fire:6':['Pyroclasm','Volcano Wrath','Meteor Swarm','Armageddon'],
-  'spirit:0':['Magic Spirit','Wisp Seeker','Spectral Hound','Lumen Spiritus'], 'spirit:1':['Arcane Soul','Soul Bloom','Mystic Halo','Anima Lux'],
-  'spirit:2':['Astral Wave','Starlight Tide','Cosmic Rush','Nova Veil'], 'spirit:3':['Phantom Bolt','Ghost Arrow','Wraith Dart','Specter Shot'],
-  'spirit:4':['Spirit Lance','Holy Spear','Radiant Pike','Aether Javelin'], 'spirit:5':['Ethereal Pulse','Aura Burst','Mind Wave','Psychic Ring'],
+  'spirit:0':['Magic Spirit','Wisp Seeker','Spectral Hound','Light Spirit'],
+  'spirit:1':['Arcane Soul','Soul Bloom','Mystic Halo','Soul Light'],
+  'spirit:2':['Astral Wave','Starlight Tide','Cosmic Rush','Nova Veil'],
+  'spirit:3':['Phantom Bolt','Ghost Arrow','Wraith Dart','Specter Shot'],
+  'spirit:4':['Spirit Lance','Holy Spear','Radiant Pike','Sky Javelin'],
+  'spirit:5':['Ethereal Pulse','Aura Burst','Mind Wave','Psychic Ring'],
   'spirit:6':['Soulfire','Pale Inferno','Requiem Blaze','Eternal Flame'],
-  'ice:0':['Frostbolt','Glacies','Winter Arrow','Frozen Dart'], 'ice:1':['Ice Nova','Blizzard Ring','Hoarfrost','Polar Burst'],
-  'ice:2':['Glacial Spike','Icicle Lance','Crystal Fang','Permafrost'], 'ice:3':['Tidal Wave','Tsunami','Ocean Wrath','Kraken Surge'],
+  'ice:0':['Frostbolt','Ice Needle','Winter Arrow','Frozen Dart'],
+  'ice:1':['Ice Nova','Blizzard Ring','Hoarfrost','Polar Burst'],
+  'ice:2':['Glacial Spike','Icicle Lance','Crystal Fang','Permafrost'],
+  'ice:3':['Tidal Wave','Tsunami','Ocean Wrath','Kraken Surge'],
   'ice:4':['Frozen Orb','Snow Globe','Arctic Sphere','Cold Heart'],
-  'storm:0':['Chain Lightning','Thunder Chain','Fulgur','Arc Storm'], 'storm:1':['Thunderstrike','Zeus Hammer','Sky Fury','Thor Wrath'],
-  'storm:2':['Arcane Spark','Static Shock','Volt Needle','Electro'], 'storm:3':['Stormcaller','Tempestas','Hurricane','Rain of Bolts'],
-  'shadow:0':['Shadow Bolt','Umbra','Dark Arrow','Void Spike'], 'shadow:1':['Soul Drain','Life Leech','Blood Siphon','Sanguis'],
-  'shadow:2':['Dark Pact','Blood Oath','Demon Bargain','Forbidden Rite'], 'shadow:3':['Necrotic Touch','Grave Hand','Plague Grasp','Mortis']};
+  'storm:0':['Chain Lightning','Thunder Chain','Lightning Leap','Arc Storm'],
+  'storm:1':['Thunderstrike','Zeus Hammer','Sky Fury','Thor Wrath'],
+  'storm:2':['Arcane Spark','Static Shock','Volt Needle','Electro'],
+  'storm:3':['Stormcaller','Tempest','Hurricane','Rain of Bolts'],
+  'shadow:0':['Shadow Bolt','Night Dagger','Dark Arrow','Void Spike'],
+  'shadow:1':['Soul Drain','Life Leech','Blood Siphon','Soul Thirst'],
+  'shadow:2':['Dark Pact','Blood Oath','Demon Bargain','Forbidden Rite'],
+  'shadow:3':['Necrotic Touch','Grave Hand','Plague Grasp','Death Grip']};
 let INC_SEL = {};
 /* les 4 phrases du cycle lancent toutes le sort */
 const incAll = id => INCV[id] || [(spellOf(id) || {}).n || ''];
@@ -3024,6 +3112,7 @@ renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('mousedown', e => { if (!playing || e.button !== 2 || !locked()) return;
   const id = me.cls + ':' + page;
   if (!lastFail || now() - lastFail.t > 10) { toast('Aucun sort raté à enregistrer'); return; }
+  if (lastFail.utt) { storeTpl(incOf(id), lastFail.utt.f); toast('Votre voix est retenue pour « ' + incOf(id) + ' »'); $('#bkhint').textContent = 'Retenu pour ' + spellOf(id).n + ' !'; bookFlash(); lastFail = null; if (known.includes(id)) tryCast(id); return; }
   if (addLearn(id, lastFail.x)) { toast('« ' + lastFail.x.slice(0, 24) + ' » lancera désormais ' + spellOf(id).n); $('#bkhint').textContent = 'Retenu pour ' + spellOf(id).n + ' !'; bookFlash(); }
   lastFail = null; });
 addEventListener('mousemove', e => { if (!locked()) return; me.yaw -= e.movementX*.0022; me.pitch = clamp(me.pitch - e.movementY*.0022, -1.45, 1.45); });
@@ -3040,7 +3129,7 @@ async function begin(kind){
   try { AC = AC || new AudioContext(); AC.resume(); musInit(); } catch (e) {}
   QA.auto = $('#gfx').value === 'auto'; setQuality($('#gfx').value !== 'low');
   me.cls = pickCls; buildStaff(me.cls); me.name = ($('#nm').value.trim() || 'Sorcier').slice(0, 16); me.since = Date.now(); mode = pickMode;
-  try { localStorage.setItem('incantatio', JSON.stringify({c:me.cls, n:me.name, l2:$('#lang').value, e2:$('#eng').value})); } catch (e) {}
+  try { localStorage.setItem('incantatio', JSON.stringify({c:me.cls, n:me.name, l2:$('#lang').value, e2:$('#eng').value, v3:1})); } catch (e) {}
   document.documentElement.style.setProperty('--acc', CL[me.cls].col);
   { const n = CL[me.cls].spells.length, i0 = Math.floor(Math.random()*n); known = [me.cls + ':' + i0]; page = i0; INC_SEL = {}; pickInc(known[0]); } renderBook();
   $('#menu').classList.add('hidden'); $('#hud').classList.remove('hidden');
