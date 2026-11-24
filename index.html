@@ -435,7 +435,7 @@ self.onmessage = async e => {
     self.postMessage({type:'ready', dev:'wasm'});
   }
   if (d.type === 'asr' && asr) {
-    try { const out = await asr(d.audio, {language:d.lang, task:'transcribe'}); self.postMessage({type:'text', id:d.id, text:out.text || ''}); }
+    try { const out = await asr(d.audio, {language:d.lang, task:'transcribe', max_new_tokens:16}); self.postMessage({type:'text', id:d.id, text:out.text || ''}); }
     catch (er) { self.postMessage({type:'text', id:d.id, text:''}); }
   }
 };`;
