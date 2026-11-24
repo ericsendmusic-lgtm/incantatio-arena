@@ -2131,6 +2131,8 @@ const INCV = {
   'shadow:2':['Dark Pact','Blood Oath','Demon Bargain','Forbidden Rite'], 'shadow:3':['Necrotic Touch','Grave Hand','Plague Grasp','Mortis']};
 let INC_SEL = {};
 const incOf = id => INC_SEL[id] || (spellOf(id) || {}).n || '';
+/* cycle : après chaque lancer, la prochaine phrase est tirée au hasard parmi les autres du sort */
+function rotInc(id){ const v = INCV[id]; if (!v || v.length < 2) return; const o = v.filter(x => x !== incOf(id)); INC_SEL[id] = o[Math.floor(Math.random()*o.length)]; }
 function pickInc(id){ const v = INCV[id]; INC_SEL[id] = v ? v[Math.floor(Math.random()*v.length)] : (spellOf(id) || {}).n; return INC_SEL[id]; }
 /* ce qu'on a appris pour une incantation ne sert qu'à cette incantation */
 const lkey = id => { const sp = spellOf(id); return !sp || incOf(id) === sp.n ? id : id + '|' + norm(incOf(id)); };
@@ -2143,7 +2145,7 @@ function tryCast(id){
   if (me.dead || !known.includes(id)) return;
   const sp = spellOf(id); if ((cds[id] || 0) > now()) { toast(sp.n + ' : pas encore prêt'); return; }
   if (me.mp < sp.mana) { toast('Pas assez de mana'); return; }
-  me.mp -= sp.mana; cds[id] = now() + sp.cd; page = +id.split(':')[1]; renderBook(); bookFlash();
+  me.mp -= sp.mana; cds[id] = now() + sp.cd; page = +id.split(':')[1]; if (id !== 'basic') rotInc(id); renderBook(); bookFlash();
   $('#bkhint').textContent = sp.n + ' !'; castOut(id);
 }
 function aimDir(){ const d = new THREE.Vector3(); camera.getWorldDirection(d); return d; }
