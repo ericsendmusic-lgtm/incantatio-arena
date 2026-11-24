@@ -18,6 +18,10 @@ FPS multijoueur de sorciers : criez vos sorts dans le micro, farmez monstres et 
 
 Les sorts se crient en anglais. La reconnaissance (Moonshine) tourne dans le navigateur, y compris Firefox, et réagit en une fraction de seconde.
 
+## Grimoire
+
+Vous commencez avec **un sort tiré au hasard** dans votre école. Chaque parchemin ajoute **un autre sort au hasard** parmi ceux qui restent ; le grimoire liste vos sorts dans l'ordre où vous les avez appris (touches 1 à 7 = 1er à 7e sort de la liste). Chaque nouveau sort a ses 10 incantations d'apprentissage.
+
 ## Butin et survie
 
 - **Pas de régénération de vie** : seules les potions soignent. La mana remonte très lentement.
@@ -33,7 +37,7 @@ Un boss toutes les 5 vagues : Golem des Ruines, Liche Écarlate, Wyrm des Ombres
 
 ## Graphismes
 
-Rendu physique (lumières réelles, reflets, ombres douces, rayons de lune, braises), bâton sculpté qui suit vos mouvements et change de couleur selon le sort, sorts en shaders (plasma de feu, éclairs fractals, cristaux de givre, sphères nécrotiques à tentacules), impacts avec onde de choc et traces au sol, araignée, goule et squelette archer sculptés.
+Rendu physique (lumières réelles, reflets, ombres douces, rayons de lune, braises), bâton sculpté qui suit vos mouvements et change de couleur selon le sort, sorts en shaders (plasma de feu, éclairs fractals, cristaux de givre, sphères nécrotiques à tentacules), impacts avec onde de choc et traces au sol, araignée, goule et squelette archer sculptés, mages sculptés et animés (chapeau ou capuche, yeux lumineux, robe qui flotte, effets propres à chaque école).
 
 ## Ambiance
 

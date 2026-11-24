@@ -1045,16 +1045,106 @@ TUFTS.material.onBeforeCompile = sh => { sh.uniforms.uT = WIND; sh.vertexShader 
 
 /* ---------- characters ---------- */
 function label(text, col){ const t = canvasTex(256, 64, (g) => { g.font = 'bold 30px Cinzel, Georgia, serif'; g.textAlign = 'center'; g.lineWidth = 6; g.strokeStyle = 'rgba(0,0,0,.8)'; g.strokeText(text, 128, 42); g.fillStyle = col; g.fillText(text, 128, 42); }); const s = new THREE.Sprite(new THREE.SpriteMaterial({map:t, depthWrite:false, transparent:true})); s.scale.set(3,.75,1); return s; }
+/* ---------------- LE MAGE (vu par les autres joueurs) : sculpté, animé, propre à chaque école ---------------- */
+const WZ_STYLE = {fire:{hat:1, trim:0xc9a24a, pad:0x6a1a0c}, ice:{hat:1, trim:0xc8d8e8, pad:0x2a4a6a}, storm:{hat:1, trim:0xd8b25a, pad:0x3a3a52}, spirit:{hat:0, trim:0xe0c8ff, pad:0x4a2a6a}, shadow:{hat:0, trim:0x7a8a70, pad:0x16201a}};
 function wizardMesh(cls, name){
-  const col = new THREE.Color(CL[cls] ? CL[cls].col : '#ccc'), g = new THREE.Group();
-  const robe = new THREE.Mesh(new THREE.ConeGeometry(.75,1.7,10), new THREE.MeshStandardMaterial({color:col.clone().multiplyScalar(.45), roughness:.9})); robe.position.y = .85; g.add(robe);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(.28,12,12), new THREE.MeshStandardMaterial({color:0xd9b896})); head.position.y = 1.75; g.add(head);
-  const hat = new THREE.Mesh(new THREE.ConeGeometry(.42,.95,10), new THREE.MeshStandardMaterial({color:col.clone().multiplyScalar(.35)})); hat.position.y = 2.3; hat.rotation.z = .15; g.add(hat);
-  const brim = new THREE.Mesh(new THREE.CylinderGeometry(.6,.6,.05,14), hat.material); brim.position.y = 1.9; g.add(brim);
-  const staff = new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,2,6), barkMat); staff.position.set(.55,1,.2); g.add(staff);
-  const orb = new THREE.Mesh(new THREE.SphereGeometry(.14,10,10), new THREE.MeshBasicMaterial({color:col})); orb.position.set(.55,2.05,.2); g.add(orb);
-  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
-  const lb = label(name, '#' + col.getHexString()); lb.position.y = 3.1; g.add(lb); g.userData.lb = lb;
+  const C = CL[cls] ? cls : 'fire', st = WZ_STYLE[C], col = new THREE.Color(CL[C].col), g = new THREE.Group(), body = new THREE.Group(); body.rotation.y = Math.PI; g.add(body);
+  const U = {uT:SPU.uT, uMv:{value:0}};
+  /* robe : plis, ourlet qui flotte et traîne en mouvement (vertex shader) */
+  const robeM = new THREE.MeshStandardMaterial({color:col.clone().multiplyScalar(.3), roughness:.93, map:DET.leather.map, normalMap:DET.leather.normal, side:THREE.DoubleSide});
+  robeM.normalScale.set(.8, .8); addRim(robeM, .3);
+  const prevC = robeM.onBeforeCompile; robeM.onBeforeCompile = (sh, r) => { if (prevC) prevC(sh, r); sh.uniforms.uT = U.uT; sh.uniforms.uMv = U.uMv;
+    sh.vertexShader = 'uniform float uT; uniform float uMv;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      { float hm = pow(clamp(1. - position.y/1.45, 0., 1.), 2.); float an = atan(position.z, position.x);
+        transformed.xz += normalize(position.xz + .0001)*sin(uT*(3. + uMv*5.) + an*4. + position.y*5.)*(.012 + uMv*.05)*hm; transformed.z -= uMv*.22*hm; }`); };
+  const dark = smat('wzDark' + C, () => pbr({c:col.clone().multiplyScalar(.16).getHex(), d:'leather', r:.95, ns:.9, side:THREE.DoubleSide}));
+  const trim = smat('wzTrim' + C, () => pbr({c:st.trim, d:'metal', r:.3, m:.85, ns:.7}));
+  const leath = smat('wzLeath', () => pbr({c:0x3a2216, d:'leather', r:.65, ns:1.6}));
+  const pad = smat('wzPad' + C, () => pbr({c:st.pad, d:'metal', r:.38, m:.8, ns:1.2, rim:.25}));
+  const blk = smat('blk', () => new THREE.MeshBasicMaterial({color:0x040303}));
+  const robe = new THREE.Mesh(geo('wz_robe', () => organic(new THREE.LatheGeometry([[.001, 1.5], [.2, 1.48], [.26, 1.36], [.25, 1.15], [.27, .9], [.36, .55], [.47, .2], [.53, .04], [.52, 0]].map(([r, y]) => new THREE.Vector2(r, y)), 40), .012, 6, 4, (v, n) => { const an = Math.atan2(v.z, v.x); return Math.sin(an*9 + v.y*1.5)*.018*(1.4 - v.y) + (v.y < .06 ? (hh3(Math.round(an*12), 4, 4) - .5)*.03 : 0); })), robeM);
+  robe.castShadow = true; body.add(robe);
+  /* ourlet brodé de runes à la couleur de l'école */
+  const runeM = new THREE.MeshStandardMaterial({color:0x1a1410, roughness:.6, emissive:col, emissiveIntensity:1.1, emissiveMap:RUNEBAND_T, transparent:true, side:THREE.DoubleSide});
+  const hem = new THREE.Mesh(geo('wz_hem', () => uvSwap(new THREE.CylinderGeometry(.5, .535, .12, 40, 1, true), 1, 3)), runeM); hem.position.y = .1; body.add(hem);
+  /* ceinture, boucle, écharpe */
+  const belt = new THREE.Mesh(geo('wz_belt', () => new THREE.TorusGeometry(.275, .03, 8, 32).rotateX(Math.PI/2)), leath); belt.position.y = 1.0; belt.scale.z = .85; body.add(belt);
+  const bk = new THREE.Mesh(geo('wz_bk', () => organic(new THREE.BoxGeometry(.09, .08, .03, 2, 2, 1), .004, 30)), trim); bk.position.set(0, 1.0, .25); body.add(bk);
+  const sash = new THREE.Mesh(geo('wz_sash', () => { const pg = new THREE.PlaneGeometry(.1, .55, 1, 8), p = pg.attributes.position; for (let v = 0; v < p.count; v++) p.setZ(v, Math.sin(p.getY(v)*9)*.02); pg.translate(0, -.27, 0); pg.computeVertexNormals(); return pg; }), dark); sash.position.set(.1, .98, .25); body.add(sash);
+  /* buste et mantelet */
+  const chest = new THREE.Mesh(geo('wz_ch', () => organic(new THREE.SphereGeometry(.27, 24, 18), .01, 8, 2)), robeM); chest.scale.set(1.05, 1, .78); chest.position.y = 1.3; body.add(chest);
+  const mantle = new THREE.Mesh(geo('wz_mt', () => organic(new THREE.SphereGeometry(.36, 28, 14, 0, Math.PI*2, Math.PI*.24, Math.PI*.24), .014, 9, 5, (v) => { const an = Math.atan2(v.z, v.x); return v.y < .12 ? (hh3(Math.round(an*9), 2, 7) - .5)*.04 : 0; })), dark);
+  mantle.position.y = 1.3; mantle.scale.set(1.05, .9, .9); mantle.castShadow = true; body.add(mantle);
+  [-1, 1].forEach(s => { const p = new THREE.Mesh(geo('wz_pd', () => organic(new THREE.SphereGeometry(.13, 18, 10, 0, Math.PI*2, 0, Math.PI*.5), .01, 14, 8)), pad); p.position.set(s*.3, 1.5, 0); p.rotation.z = -s*.35; p.scale.set(1, .8, 1); body.add(p);
+    const rv = new THREE.Mesh(geo('wz_rv', () => new THREE.TorusGeometry(.12, .012, 6, 20, Math.PI).rotateX(Math.PI/2)), trim); rv.position.copy(p.position); rv.rotation.z = -s*.35; body.add(rv); });
+  if (C === 'ice') [-1, 1].forEach(s => { for (let i = 0; i < 3; i++) { const c = new THREE.Mesh(SHARD(), iceMat()); c.scale.set(.03, .03, .08 + i*.02); c.position.set(s*(.3 + i*.04), 1.6, -.04 + i*.05); c.rotation.set(-1.2, 0, s*(.3 + i*.3)); body.add(c); } });
+  if (C === 'fire' || C === 'storm') [-1, 1].forEach(s => { for (let i = 0; i < 2; i++) { const sp = new THREE.Mesh(geo('wz_sp', () => new THREE.ConeGeometry(.025, .14, 6)), trim); sp.position.set(s*(.33 + i*.03), 1.6, -.04 + i*.08); sp.rotation.z = -s*.6; body.add(sp); } });
+  /* tête : visage dans l'ombre, yeux lumineux, barbe ; chapeau usé ou capuche profonde */
+  const head = new THREE.Group(); head.position.y = 1.62; body.add(head);
+  const face = new THREE.Mesh(geo('wz_face', () => new THREE.SphereGeometry(.15, 18, 14)), blk); face.scale.set(.95, 1.08, .9); head.add(face);
+  [-1, 1].forEach(s => eyeGlow(head, s*.05, .02, .142, col.getHex(), .017, .22, 3));
+  if (st.hat) {
+    const beard = new THREE.Mesh(geo('wz_beard', () => organic(new THREE.ConeGeometry(.12, .42, 16, 6, true).rotateX(Math.PI).translate(0, -.15, 0), .015, 14, 2, v => Math.sin(Math.atan2(v.z, v.x)*14)*.008)), smat('wzBeard', () => pbr({c:0x8a8580, d:'fur', r:.9, ns:1.5}))); beard.position.set(0, -.08, .07); beard.rotation.x = .25; head.add(beard);
+    const hatM = smat('wzHat' + C, () => pbr({c:col.clone().multiplyScalar(.28).getHex(), d:'leather', r:.85, ns:1.8}));
+    const crown = new THREE.Mesh(geo('wz_hat', () => ptube([[0, 0, 0], [0, .2, -.02], [.02, .42, -.06], [.08, .58, -.16], [.16, .64, -.28]], .17, .012, 28, 16, .012, 10, .05)), hatM); crown.position.y = .1; crown.castShadow = true; head.add(crown);
+    const brim = new THREE.Mesh(geo('wz_brim', () => organic(new THREE.RingGeometry(.12, .4, 40, 3).rotateX(-Math.PI/2), .02, 5, 7, v => Math.sin(Math.atan2(v.z, v.x)*3)*.02*Math.hypot(v.x, v.z))), smat('wzHatD' + C, () => pbr({c:col.clone().multiplyScalar(.28).getHex(), d:'leather', r:.85, ns:1.8, side:THREE.DoubleSide}))); brim.position.y = .1; brim.rotation.x = .08; brim.castShadow = true; head.add(brim);
+    const band = new THREE.Mesh(geo('wz_band', () => new THREE.TorusGeometry(.165, .018, 6, 28).rotateX(Math.PI/2)), trim); band.position.y = .14; head.add(band);
+  } else {
+    const hood = new THREE.Mesh(geo('wz_hood', () => { const hg = organic(new THREE.SphereGeometry(.24, 30, 20, Math.PI/2 + .75, Math.PI*2 - 1.5, 0, Math.PI*.7), .016, 8, 6), p = hg.attributes.position; for (let v = 0; v < p.count; v++) { const y = p.getY(v), z = p.getZ(v); if (y > .1 && z < 0) { p.setY(v, y + (y - .1)*.6); p.setZ(v, z - (y - .1)*.9); } } hg.computeVertexNormals(); return hg; }), dark); hood.position.set(0, .03, -.02); hood.castShadow = true; head.add(hood);
+  }
+  /* bras : manches évasées, gants ; la droite tient un bâton sculpté */
+  const sleeve = (s) => { const sh = new THREE.Group(); sh.position.set(s*.3, 1.45, 0); body.add(sh);
+    const sl = new THREE.Mesh(geo('wz_sl', () => organic(ptube([[0, 0, 0], [0, -.2, .01], [0, -.42, .03]], .085, .14, 12, 14), .008, 10)), robeM); sl.castShadow = true; sh.add(sl);
+    const cuff = new THREE.Mesh(geo('wz_cf', () => new THREE.TorusGeometry(.135, .014, 6, 20).rotateX(Math.PI/2)), trim); cuff.position.y = -.42; sh.add(cuff);
+    const hand = new THREE.Group(); hand.position.y = -.48; sh.add(hand);
+    const palm = new THREE.Mesh(geo('wz_hd', () => organic(new THREE.SphereGeometry(.055, 12, 10), .006, 20)), leath); palm.scale.set(.9, 1.2, .8); hand.add(palm);
+    return {sh, hand}; };
+  const armR = sleeve(1), armL = sleeve(-1);
+  const staff = new THREE.Group(); staff.position.set(0, -.02, .04); armR.hand.add(staff);
+  const wood = smat('stWD', () => pbr({c:0x3a2414, d:'bark', r:.8, ns:2.2})), iron = smat('stI', () => pbr({c:0x2e2b30, d:'metal', r:.3, m:.95, ns:1.1}));
+  for (let k = 0; k < 2; k++) staff.add(new THREE.Mesh(geo('wz_stf' + k, () => { const pts = []; for (let i = 0; i <= 24; i++) { const t = i/24, a = k*Math.PI + t*Math.PI*6; pts.push([Math.cos(a)*.018, -.9 + t*1.95, Math.sin(a)*.018]); } return uvSwap(ptube(pts, .026, .018, 60, 8, .003, 30), 1, 5); }), wood));
+  for (let i = 0; i < 4; i++) { const a = i/4*Math.PI*2 + .3, c = Math.cos(a), s = Math.sin(a); staff.add(new THREE.Mesh(geo('wz_cw' + i, () => ptube([[c*.03, 1.03, s*.03], [c*.08, 1.12, s*.08], [c*.085, 1.24, s*.085], [c*.025, 1.32, s*.025]], .014, .002, 14, 6)), iron)); }
+  const crys = new THREE.Mesh(geo('wz_cr', () => new THREE.OctahedronGeometry(.06, 0).scale(1, 1.8, 1)), new THREE.MeshBasicMaterial({color:col.clone().multiplyScalar(2.2), toneMapped:false})); crys.position.y = 1.18; staff.add(crys);
+  const crysG = new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex, color:col, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.7, fog:false})); crysG.scale.setScalar(.5); crysG.position.y = 1.18; staff.add(crysG);
+  const palmG = new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex, color:col, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:0, fog:false})); palmG.scale.setScalar(.5); armL.hand.add(palmG);
+  /* bottes qui dépassent sous la robe */
+  const boots = [-1, 1].map(s => { const b = new THREE.Mesh(geo('wz_bt', () => organic(new THREE.SphereGeometry(.075, 14, 10).scale(1, .7, 1.7).translate(0, .04, .04), .006, 20)), leath); b.position.set(s*.12, 0, 0); body.add(b); return b; });
+  /* anneau de runes flottant (esprit) */
+  let ring = null; if (C === 'spirit') { ring = new THREE.Group(); ring.position.y = .9; body.add(ring); RUNE_TX.forEach((tx, i) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({map:tx, color:col, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.75, fog:false})); s.scale.setScalar(.16); const a = i/RUNE_TX.length*Math.PI*2; s.position.set(Math.cos(a)*.6, 0, Math.sin(a)*.6); ring.add(s); }); }
+  g.traverse(o => { if (o.isMesh) o.frustumCulled = false; });
+  const lb = label(name, '#' + col.getHexString()); lb.position.y = 2.55; g.add(lb); g.userData.lb = lb;
+  /* animation */
+  const S = {mv:0, cast:0, hit:0, die:0, lx:null, lz:null, hp:100, ph:0, fxT:0}, wp = new THREE.Vector3(), colS = '#' + col.getHexString();
+  g.userData.cast = () => { S.cast = 1; };
+  g.userData.upd = (dt, o) => {
+    if (S.lx === null) { S.lx = g.position.x; S.lz = g.position.z; }
+    const sp = Math.hypot(g.position.x - S.lx, g.position.z - S.lz)/Math.max(dt, 1e-3); S.lx = g.position.x; S.lz = g.position.z;
+    S.mv += (clamp(sp/5.5, 0, 1.6) - S.mv)*Math.min(1, dt*8); const mv = Math.min(1, S.mv);
+    if (o.hp < S.hp - .5) S.hit = 1; S.hp = o.hp;
+    S.cast = Math.max(0, S.cast - dt*2.2); S.hit = Math.max(0, S.hit - dt*4);
+    if (o.dead) { S.die = Math.min(1.6, S.die + dt); g.visible = S.die < 1.5; } else { S.die = 0; g.visible = true; }
+    const T2 = T + (g.id % 7), dk = Math.min(1, S.die/1.1);
+    S.ph += dt*(6 + S.mv*4)*Math.min(1, S.mv*3);
+    const step = Math.sin(S.ph), c = S.cast, ce = c*c*(3 - 2*c), h = S.hit;
+    U.uMv.value = mv;
+    body.position.y = Math.abs(Math.cos(S.ph))*.05*mv + Math.sin(T2*1.6)*.008 - dk*.2;
+    body.rotation.x = -mv*.12 + h*.25 - ce*.08 - dk*1.35; body.rotation.z = step*.04*mv + Math.sin(T2*.9)*.015;
+    boots.forEach((b, i) => { const p = i ? -step : step; b.position.z = p*.16*mv; b.position.y = Math.max(0, Math.cos(S.ph + i*Math.PI))*.06*mv; });
+    armR.sh.rotation.set(-.2 - step*.25*mv - ce*1.25 + h*.3, 0, .08 + ce*.1);
+    armL.sh.rotation.set(step*.3*mv - ce*1.5 - h*.2, 0, -.18 - ce*.25);
+    staff.rotation.set(ce*.9, 0, -.05);
+    head.rotation.set(-ce*.15 + h*.3 + Math.sin(T2*.7)*.05, Math.sin(T2*.5)*.2*(1 - mv), 0);
+    crys.rotation.y += dt*2; const pu = 1 + Math.sin(T2*3.4)*.2 + c*2; crysG.scale.setScalar(.45*pu); crysG.material.opacity = .55 + c*.4;
+    palmG.material.opacity = ce*.9; palmG.scale.setScalar(.3 + ce*.6);
+    runeM.emissiveIntensity = .9 + Math.sin(T2*2.2)*.3 + c*1.5;
+    if (ring) { ring.rotation.y += dt*.8; ring.position.y = .9 + Math.sin(T2*1.3)*.08; }
+    if (!o.dead && g.visible) { S.fxT -= dt; if (S.fxT <= 0) { S.fxT = .12 + Math.random()*.2; g.getWorldPosition(wp);
+      if (C === 'fire') puff(wp.x + (Math.random() - .5)*.6, 1.4 + Math.random()*.3, wp.z + (Math.random() - .5)*.6, Math.random() < .5 ? '#ff8a2a' : '#ffd25a', 1, .5, .12, .9, 1.4);
+      else if (C === 'ice') puff(wp.x + (Math.random() - .5)*.8, .15, wp.z + (Math.random() - .5)*.8, '#cfefff', 1, .3, .35, 1.2, .2);
+      else if (C === 'shadow') puff(wp.x + (Math.random() - .5)*.7, .2 + Math.random()*.4, wp.z + (Math.random() - .5)*.7, '#2a5a34', 1, .3, .45, 1.1, .6);
+      else if (C === 'storm' && Math.random() < .35) { crys.getWorldPosition(wp); lightning([wp.clone(), wp.clone().add(new THREE.Vector3((Math.random() - .5)*.7, (Math.random() - .3)*.6, (Math.random() - .5)*.7))], CL[C].col, .07, .025, .015); }
+      else if (C === 'spirit') puff(wp.x + (Math.random() - .5)*.6, .6 + Math.random()*.8, wp.z + (Math.random() - .5)*.6, colS, 1, .2, .15, 1, .5); } }
+  };
   scene.add(g); return g;
 }
 const bar3 = () => { const g = new THREE.Group(); const bg = new THREE.Mesh(geo('hb', () => new THREE.PlaneGeometry(1.2,.13)), MATS.hbb || (MATS.hbb = new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:.6, depthWrite:false}))); const fg = new THREE.Mesh(geo('hb', () => new THREE.PlaneGeometry(1.2,.13)), MATS.hbf || (MATS.hbf = new THREE.MeshBasicMaterial({color:0xe2443b, depthWrite:false}))); fg.position.z = .01; g.add(bg, fg); g.userData.fg = fg; return g; };
@@ -2008,13 +2098,14 @@ let hmT = 0; function hitmark(){ hmT = .15; $('#cross').classList.add('hit'); }
 /* ---------- book ---------- */
 function renderBook(){
   const c = CL[me.cls], ids = c.spells.map((_, i) => me.cls + ':' + i);
-  page = clamp(page, 0, ids.length-1); const id = ids[page], sp = c.spells[page], has = known.includes(id);
+  page = clamp(page, 0, ids.length-1); if (!known.includes(ids[page]) && known.length) page = +known[0].split(':')[1]; const id = ids[page], sp = c.spells[page], has = known.includes(id);
   $('#bkglyph').innerHTML = glyph(me.cls);
-  setTimeout(() => { if (has && calLeft(id) > 0) $('#bkmeta').textContent += ' · apprentissage vocal ' + (CAL_N - calLeft(id)) + '/' + CAL_N; }, 0);
+  setTimeout(() => { const bm = $('#bkmeta'); bm.textContent = bm.textContent.replace(/ · apprentissage vocal \d+\/\d+/g, '') + (has && calLeft(id) > 0 ? ' · apprentissage vocal ' + (CAL_N - calLeft(id)) + '/' + CAL_N : ''); }, 0);
   $('#bkname').textContent = has ? sp.n : 'Page scellée';
   $('#bkhint').textContent = has ? 'Criez : « ' + sp.n + ' »' + '' : 'Trouvez un parchemin pour la déchiffrer';
   $('#bkmeta').textContent = has ? `${sp.mana} mana · ${sp.cd}s · ${({bolt:'projectile',nova:'onde autour de vous',rain:'pluie au sol visé',wave:'vague frontale',chain:'arc en chaîne'})[sp.k]}` : '';
-  $('#bklist').innerHTML = ids.map((sid, i) => known.includes(sid) ? `<li class="${i === page ? 'cur' : ''}" data-i="${i}"><s data-cd="${sid}"></s><span>${esc(c.spells[i].n)}</span><em>${c.spells[i].mana}</em></li>` : `<li class="lock${i === page ? ' cur' : ''}"><span>~ page scellée ~</span></li>`).join('');
+  const cat = known.filter(k => k.startsWith(me.cls + ':')), sealed = ids.length - cat.length;
+  $('#bklist').innerHTML = cat.map((sid, n) => { const i = +sid.split(':')[1]; return `<li class="${i === page ? 'cur' : ''}" data-i="${i}"><s data-cd="${sid}"></s><span>${n + 1}. ${esc(c.spells[i].n)}</span><em>${c.spells[i].mana}</em></li>`; }).join('') + (sealed ? `<li class="lock"><span>~ ${sealed} page${sealed > 1 ? 's' : ''} scellée${sealed > 1 ? 's' : ''} ~</span></li>` : '');
 }
 function bookFlash(){ const b = $('#book'); b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash'); }
 
@@ -2060,6 +2151,7 @@ function applyCast(data, caster, mine){
   const ov = new THREE.Vector3(o[0], o[1], o[2]), dv = new THREE.Vector3(d[0], d[1], d[2]).normalize(), el = ELEM(data.s, cls);
   const fxd = {slow:sp.slow, dot:sp.dot, push:sp.push};
   const myDist = Math.hypot(me.x - o[0], me.z - o[2]);
+  if (!mine) { const oc = others.get(caster); if (oc && oc.g.userData.cast) oc.g.userData.cast(); }
   if (!mine && data.s !== 'basic') { if (!audios.has(caster)) shout(sp.n, cls, myDist, false); heard.n = sp.n; heard.t = now(); }
   sfx(sp.k === 'bolt' ? 'zap' : 'boom', clamp(1 - myDist/60, .1, 1));
   if (sp.k === 'bolt') { spawnProj({x:o[0], y:o[1], z:o[2], v:dv.multiplyScalar(sp.spd), sp, col, owner:caster, fxd, el}); }
@@ -2169,8 +2261,8 @@ function grant(t){
   if (t === 'hp') { heal(45); toast('Potion de soin'); return; }
   if (t === 'mp') { me.mp = Math.min(me.maxMp, me.mp + 60); toast('Cristal de mana'); return; }
   if (t === 'pw') { me.pwT = 25; toast('Rune de puissance : dégâts ×1,5 pendant 25 s'); puff(me.x, 1, me.z, '#ff6a2a', 14, 4, .7, .8, 2); return; }
-  const ids = CL[me.cls].spells.map((_, i) => me.cls + ':' + i), next = ids.find(i => !known.includes(i));
-  if (next) { known.push(next); page = +next.split(':')[1]; renderBook(); bookFlash(); banner('Parchemin déchiffré', spellOf(next).n + ' est inscrit dans votre grimoire'); }
+  const ids = CL[me.cls].spells.map((_, i) => me.cls + ':' + i), rest = ids.filter(i => !known.includes(i)), next = rest.length ? rest[Math.floor(Math.random()*rest.length)] : null;
+  if (next) { known.push(next); page = +next.split(':')[1]; renderBook(); bookFlash(); banner('Parchemin déchiffré', spellOf(next).n + ' rejoint votre grimoire' + (calLeft(next) > 0 ? ' · vos 10 premières incantations l\'apprendront' : '')); }
   else { me.maxMp += 15; me.mp = me.maxMp; toast('Grimoire complet : mana max +15'); }
 }
 
@@ -2407,7 +2499,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Enter') { e.preventDefault(); openChat(true); }
   if (e.code === 'KeyT') { e.preventDefault(); openChat(false); }
   if (e.code === 'Tab') { e.preventDefault(); renderScore(); $('#score').classList.remove('hidden'); }
-  if (/^Digit[1-7]$/.test(e.code)) { page = +e.code.slice(5) - 1;
+  if (/^Digit[1-7]$/.test(e.code)) { const cat = known.filter(k => k.startsWith(me.cls + ':')), pick = cat[+e.code.slice(5) - 1]; if (!pick) return; page = +pick.split(':')[1];
     /* correction en jeu : le dernier mot raté devient une prononciation de ce sort */
     const id = me.cls + ':' + page;
     if (lastFail && now() - lastFail.t < 5 && spellOf(id)) { if (addLearn(id, lastFail.x)) toast('« ' + lastFail.x.slice(0, 24) + ' » lancera désormais ' + spellOf(id).n); lastFail = null; if (known.includes(id)) tryCast(id); }
@@ -2446,7 +2538,7 @@ async function begin(kind){
   me.cls = pickCls; buildStaff(me.cls); me.name = ($('#nm').value.trim() || 'Sorcier').slice(0, 16); me.since = Date.now(); mode = pickMode;
   try { localStorage.setItem('incantatio', JSON.stringify({c:me.cls, n:me.name, l2:$('#lang').value, e2:$('#eng').value})); } catch (e) {}
   document.documentElement.style.setProperty('--acc', CL[me.cls].col);
-  known = [me.cls + ':0']; page = 0; renderBook();
+  { const n = CL[me.cls].spells.length, i0 = Math.floor(Math.random()*n); known = [me.cls + ':' + i0]; page = i0; } renderBook();
   $('#menu').classList.add('hidden'); $('#hud').classList.remove('hidden');
   respawn(); me.deaths = 0; hostReady = false; isHost = false; room = null;
   {
@@ -2515,6 +2607,7 @@ function loop(){
     /* chien de garde : relance la reconnaissance si elle s'est arrêtée toute seule */
     wdT -= dt; if (wdT <= 0 && engine() === 'browser') { wdT = 1.5; if (SR && micWanted && !recOn) startMic(); else if (SR && micWanted && recOn && lastRes && now() - lastRes > 45) { lastRes = now(); try { rec.abort(); } catch (e) {} } }
     for (const [id, a] of audios) { const o = others.get(id); const d = o ? Math.hypot(o.g.position.x - me.x, o.g.position.z - me.z) : 0; a.volume = clamp(1 - d/70, .25, 1); }
+    for (const o of others.values()) if (o.g.userData.upd) o.g.userData.upd(dt, o);
     if (isHost) hostStep(dt);
     updHud(dt);
     mmT -= dt; if (mmT <= 0) { mmT = .1; drawMinimap(); }
