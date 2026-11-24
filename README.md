@@ -4,6 +4,8 @@ FPS multijoueur de sorciers : criez vos sorts dans le micro, farmez monstres et 
 
 **Jouer :** https://ericsendmusic-lgtm.github.io/incantatio-arena/
 
+**Version précédente (sauvegarde) :** https://ericsendmusic-lgtm.github.io/incantatio-arena/backup/ — aussi sur la branche `backup-avant-etape3`.
+
 ## Classes et sorts
 
 | Classe | Sorts (dans l'ordre de déblocage) |
@@ -19,15 +21,19 @@ Les sorts se crient en anglais. La reconnaissance (Moonshine) tourne dans le nav
 ## Butin et survie
 
 - **Pas de régénération de vie** : seules les potions soignent. La mana remonte très lentement.
-- **Parchemin (halo doré)** : débloque le sort suivant de votre classe. Rare : boss 1 garanti (parfois 2), ogre 12 %, autres monstres 3,5 %.
-- **Potion (halo vert)** : +45 PV.
-- **Cristal (halo bleu)** : +60 mana.
-- **Rune de puissance (halo orange)** : dégâts ×1,5 pendant 25 s.
+- **Parchemin (rouleau scellé, faisceau doré)** : débloque le sort suivant de votre classe. Rare : boss 1 garanti (parfois 2), ogre 12 %, autres monstres 3,5 %.
+- **Croix de soin (émeraude)** : +45 PV.
+- **Cristaux de saphir** : +60 mana.
+- **Rune de puissance (pierre noire, rune de feu)** : dégâts ×1,5 pendant 25 s.
 
 ## Monstres
 
 Diablotin, Araignée des cryptes, Goule, Squelette archer (tire à distance, esquivez !), Slime (se divise), Loup spectral, Ogre.
 Un boss toutes les 5 vagues : Golem des Ruines, Liche Écarlate, Wyrm des Ombres.
+
+## Graphismes
+
+Rendu physique (lumières réelles, reflets, ombres douces, rayons de lune, braises), bâton sculpté qui suit vos mouvements et change de couleur selon le sort, sorts en shaders (plasma de feu, éclairs fractals, cristaux de givre, sphères nécrotiques à tentacules), impacts avec onde de choc et traces au sol, araignée, goule et squelette archer sculptés.
 
 ## Ambiance
 
@@ -36,7 +42,7 @@ Musique médiévale générée en direct (touche **M** pour la couper), minicart
 ## Micro
 
 - Bouton **Tester le micro** sur l'écran d'accueil (affiche ce qui est entendu et le % de ressemblance).
-- **Les 10 premiers sorts dits servent d'apprentissage** : même mal compris, le sort part et le jeu retient votre prononciation.
+- **Apprentissage par sort** : pour chaque sort, les 10 premières incantations dites quand sa page est ouverte dans le grimoire le lancent à coup sûr, et le jeu retient ce que le micro a entendu (progression affichée dans le grimoire). Un autre sort reconnu très nettement part quand même.
 - **Clic droit après un sort raté** : le jeu retient ce qu'il a entendu pour le sort ouvert dans le grimoire.
 - Casque avec micro conseillé.
 
