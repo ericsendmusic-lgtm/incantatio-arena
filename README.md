@@ -36,7 +36,8 @@ Musique médiévale générée en direct (touche **M** pour la couper), minicart
 ## Micro
 
 - Bouton **Tester le micro** sur l'écran d'accueil (affiche ce qui est entendu et le % de ressemblance).
-- **Clic droit maintenu** : parlez puis relâchez pour lancer, idéal s'il y a du bruit (ventilateur…).
+- **Les 10 premiers sorts dits servent d'apprentissage** : même mal compris, le sort part et le jeu retient votre prononciation.
+- **Clic droit après un sort raté** : le jeu retient ce qu'il a entendu pour le sort ouvert dans le grimoire.
 - Casque avec micro conseillé.
 
 ---
@@ -89,7 +90,7 @@ Sur la page du dépôt : **Add file** → **Upload files**, glisse le nouveau `i
 | Z Q S D / W A S D | Se déplacer |
 | Maj / Espace | Courir / sauter |
 | V | Couper ou rallumer le micro (voix + sorts) |
-| Clic droit maintenu | Parler puis relâcher pour lancer le sort |
+| Clic droit | Après un raté : apprendre le mot entendu au sort ouvert |
 | Crier le nom du sort | Lancer le sort |
 | Entrée | Écrire une incantation au clavier |
 | T | Chat écrit |

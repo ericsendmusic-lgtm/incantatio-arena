@@ -169,7 +169,7 @@ button{cursor:pointer}
       <li><kbd>Z Q S D</kbd> / <kbd>W A S D</kbd> se déplacer · <kbd>Maj</kbd> courir · <kbd>Espace</kbd> sauter</li>
       <li><kbd>M</kbd> musique on/off</li>
       <li><kbd>V</kbd> micro on/off · <b>criez le nom du sort</b>, vos amis vous entendent</li>
-      <li><kbd>Clic droit</kbd> maintenu : parlez puis relâchez pour lancer (le plus fiable avec du bruit)</li>
+      <li><kbd>Clic droit</kbd> après un sort raté : le jeu retient ce qu'il a entendu pour le sort ouvert dans le grimoire · les 10 premiers sorts dits servent d'apprentissage</li>
       <li><kbd>Entrée</kbd> écrire une incantation · <kbd>T</kbd> chat de salle</li>
       <li><kbd>Molette</kbd> / <kbd>1–7</kbd> feuilleter le grimoire · après un sort raté, <kbd>1–7</kbd> apprend le mot au jeu</li>
       <li><kbd>Tab</kbd> scores · le créateur partage son code, 3 sorciers max</li>
@@ -602,7 +602,12 @@ function onSpeech(raw, final, lax){
   if (chatOpen) { $('#chatin').value = text; if (final) sendChat(); return; }
   pttText = (pttText && !final ? '' : '') + all; pttCast = pttCast || false;
   $('#bksaid').textContent = '« ' + text + ' »'; $('#mict').textContent = 'J\'entends : ' + text.slice(-28);
-  if (!uttCast) { const m = matchSpell(all, lax); if (m && heard.n === spellOf(m.id).n && now() - heard.t < 3) { if (final) uttCast = false; return; } const quick = m && (m.s >= .8 || (prevPart && prevPart.id === m.id)); prevPart = m; if (final) prevPart = null; if (m && (final || quick)) { uttCast = true; if (lastFail && now() - lastFail.t < 6 && m.s >= .66 && addLearn(m.id, lastFail.x)) toast('Prononciation retenue pour ' + spellOf(m.id).n); lastFail = null; if (m.s < .8 && final && !lax) addLearn(m.id, all); tryCast(m.id); } else if (final) { fizzle(); lastFail = {x:all, t:now()}; } }
+  if (!uttCast) { const m = matchSpell(all, lax); if (m && heard.n === spellOf(m.id).n && now() - heard.t < 3) { if (final) uttCast = false; return; } const quick = m && (m.s >= .8 || (prevPart && prevPart.id === m.id)); prevPart = m; if (final) prevPart = null; if (m && (final || quick)) { uttCast = true; if (lastFail && now() - lastFail.t < 6 && m.s >= .66 && addLearn(m.id, lastFail.x)) toast('Prononciation retenue pour ' + spellOf(m.id).n); lastFail = null; if (m.s < .8 && final && !lax) addLearn(m.id, all); tryCast(m.id); } else if (final && calib > 0 && all.trim().length > 1) { /* phase d'apprentissage : on lance le sort le plus proche et on retient la phrase */
+      const cur = me.cls + ':' + page, id = lastNear && lastNear.s > .25 ? lastNear.id : known.includes(cur) ? cur : known[0];
+      addLearn(id, all); calib--; try { localStorage.setItem('incantatio-calib', calib); } catch (e) {}
+      toast('Appris : « ' + text.slice(0, 24) + ' » = ' + spellOf(id).n + (calib ? ' (encore ' + calib + ' essais d\'apprentissage)' : ' · apprentissage terminé'));
+      uttCast = true; tryCast(id); }
+    else if (final) { fizzle(); lastFail = {x:all, t:now()}; } }
   if (final) uttCast = false;
 }
 /* ---------- Whisper : vrai modèle de reconnaissance vocale, exécuté dans le navigateur ---------- */
@@ -880,7 +885,8 @@ function bookFlash(){ const b = $('#book'); b.classList.remove('flash'); void b.
 
 /* ---------- casting ---------- */
 const now = () => performance.now()/1000;
-function fizzle(){ setTimeout(() => { if (lastFail && now() - lastFail.t < 4.5) $('#bkhint').textContent = 'Raté ? Appuyez sur le numéro du sort (1–7) pour apprendre ce mot au jeu.'; }, 1200); $('#bkhint').textContent = lastNear && lastNear.s > .4 ? 'Presque ! « ' + spellOf(lastNear.id).n + ' » à ' + Math.round(lastNear.s*100) + ' %, répétez plus distinctement.' : 'Le sort se dissipe… parlez plus clairement.'; }
+let calib = 10; try { const c = localStorage.getItem('incantatio-calib'); if (c !== null) calib = Math.max(0, +c || 0); } catch (e) {}
+function fizzle(){ setTimeout(() => { if (lastFail && now() - lastFail.t < 4.5) $('#bkhint').textContent = 'Raté ? Clic droit : le jeu retient ce mot pour le sort ouvert dans le grimoire.'; }, 1200); $('#bkhint').textContent = lastNear && lastNear.s > .4 ? 'Presque ! « ' + spellOf(lastNear.id).n + ' » à ' + Math.round(lastNear.s*100) + ' %, répétez plus distinctement.' : 'Le sort se dissipe… parlez plus clairement.'; }
 function tryCast(id){
   if (pttOn) pttCast = true;
   if (me.dead || !known.includes(id)) return;
@@ -1261,11 +1267,11 @@ renderer.domElement.addEventListener('mousedown', e => {
 });
 /* clic droit maintenu = « appuyer pour parler » : au relâchement, on lance le sort entendu même si le bruit empêche la phrase de se terminer */
 renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
-addEventListener('mousedown', e => { if (!playing || e.button !== 2 || !locked()) return; pttOn = true; pttText = ''; pttCast = false; pttBuf = []; vadOn = false; vadBuf = []; if (!recOn && micWanted) startMic(); $('#mict').textContent = 'Parlez… (relâchez pour lancer)'; $('#mic').classList.add('on'); });
-addEventListener('mouseup', e => { if (e.button !== 2 || !pttOn) return; pttOn = false;
-  if (engine() === 'whisper') { if (pttBuf.length > 3) { pttPending = true; sendASR(pttBuf); } else $('#bkhint').textContent = 'Maintenez le clic droit pendant que vous parlez.'; pttBuf = []; return; }
-  if (!pttCast) { if (pttText) { const m = matchSpell(pttText, true); if (m) { uttCast = true; tryCast(m.id); } else fizzle(); } else $('#bkhint').textContent = 'Je n\'ai rien entendu : maintenez le clic droit pendant que vous parlez.'; }
-  pttText = ''; });
+addEventListener('mousedown', e => { if (!playing || e.button !== 2 || !locked()) return;
+  const id = me.cls + ':' + page;
+  if (!lastFail || now() - lastFail.t > 10) { toast('Aucun sort raté à enregistrer'); return; }
+  if (addLearn(id, lastFail.x)) { toast('« ' + lastFail.x.slice(0, 24) + ' » lancera désormais ' + spellOf(id).n); $('#bkhint').textContent = 'Retenu pour ' + spellOf(id).n + ' !'; bookFlash(); }
+  lastFail = null; });
 addEventListener('mousemove', e => { if (!locked()) return; me.yaw -= e.movementX*.0022; me.pitch = clamp(me.pitch - e.movementY*.0022, -1.45, 1.45); });
 addEventListener('wheel', e => { if (!playing) return; page = clamp(page + Math.sign(e.deltaY), 0, CL[me.cls].spells.length-1); renderBook(); }, {passive:true});
 $('#bklist').addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if (li) { page = +li.dataset.i; renderBook(); } });
