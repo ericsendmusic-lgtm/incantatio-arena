@@ -117,6 +117,7 @@ button{cursor:pointer}
 #mic{position:absolute;left:0;right:0;top:-34px;display:flex;justify-content:center}
 #mic span{display:inline-flex;align-items:center;gap:6px;background:rgba(10,12,24,.8);border:1px solid rgba(234,219,185,.35);border-radius:20px;padding:3px 12px;font-size:13px;color:#eadbb9}
 #mic svg{width:14px;height:14px}
+#lvl{display:inline-block;width:46px;height:6px;border-radius:3px;background:rgba(255,255,255,.18);overflow:hidden}#lvl u{display:block;height:100%;width:0;background:#7dff9c;transition:width .08s}
 #mic.on span{border-color:#ff5a4a;color:#fff}
 #mic.on svg{color:#ff5a4a;animation:pu 1.2s infinite}
 @keyframes pu{50%{opacity:.35}}
@@ -173,7 +174,7 @@ button{cursor:pointer}
     <div class="bar mp"><u id="mpb"></u><span id="mpt"></span></div>
   </div>
   <div class="hud" id="book">
-    <div id="mic"><span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3zm6-3a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.9V22h2v-2.1A8 8 0 0 0 20 12z"/></svg><em id="mict">Micro</em></span></div>
+    <div id="mic"><span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3zm6-3a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.9V22h2v-2.1A8 8 0 0 0 20 12z"/></svg><em id="mict">Micro</em><i id="lvl"><u></u></i></span></div>
     <div class="cover"></div>
     <div class="pages">
       <div class="pg l"><div id="bkglyph"></div><div id="bkname"></div><div id="bkhint"></div><div id="bkmeta"></div><div id="bksaid"></div></div>
@@ -406,20 +407,20 @@ function matchSpell(text){
   lastNear = best ? {id:best, s:bs} : null;
   return bs >= .66 ? {id:best, s:bs} : null;
 }
-let uttCast = false, micWanted = true; const heard = {n:'', t:-9};
+let uttCast = false, micWanted = true, prevPart = null, lastRes = 0; const heard = {n:'', t:-9};
 function onSpeech(raw, final){
   const text = Array.isArray(raw) ? raw[0] : raw, all = Array.isArray(raw) ? raw.join(' ') : raw;
   if (!playing) return;
   if (chatOpen) { $('#chatin').value = text; if (final) sendChat(); return; }
   $('#bksaid').textContent = '« ' + text + ' »'; $('#mict').textContent = 'J\'entends : ' + text.slice(-28);
-  if (!uttCast) { const m = matchSpell(all); if (m && heard.n === spellOf(m.id).n && now() - heard.t < 3) { if (final) uttCast = false; return; } if (m && (final || m.s >= .85)) { uttCast = true; tryCast(m.id); } else if (final) fizzle(); }
+  if (!uttCast) { const m = matchSpell(all); if (m && heard.n === spellOf(m.id).n && now() - heard.t < 3) { if (final) uttCast = false; return; } const quick = m && (m.s >= .8 || (prevPart && prevPart.id === m.id)); prevPart = m; if (final) prevPart = null; if (m && (final || quick)) { uttCast = true; tryCast(m.id); } else if (final) fizzle(); }
   if (final) uttCast = false;
 }
 function setMic(s){ if (!SR) s = 'na'; const el = $('#mic'); el.classList.toggle('on', s === 'on'); $('#mict').textContent = s === 'on' ? 'Micro actif · criez votre sort' : s === 'na' ? 'Sorts au clavier : Entrée pour écrire' : micWanted ? 'Micro en pause…' : 'Micro coupé · V pour l\'activer'; }
 function startMic(){
   if (!SR || recOn || !micWanted) return;
   if (!rec) { rec = new SR(); rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 5;
-    rec.onresult = e => { for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i], alts = []; for (let k = 0; k < r.length; k++) alts.push(r[k].transcript); onSpeech(alts, r.isFinal); } };
+    rec.onresult = e => { lastRes = now(); for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i], alts = []; for (let k = 0; k < r.length; k++) alts.push(r[k].transcript); onSpeech(alts, r.isFinal); } };
     rec.onend = () => { recOn = false; setMic('off'); if (micWanted && playing) setTimeout(startMic, 250); };
     rec.onerror = e => { const m = srError(e.error); if (m) { micWanted = false; sys(m); toast(m); $('#mict').textContent = 'Reconnaissance vocale en panne · voir le chat'; } }; }
   rec.lang = $('#lang').value;
@@ -859,9 +860,10 @@ async function begin(kind){
   known = [me.cls + ':0']; page = 0; renderBook();
   $('#menu').classList.add('hidden'); $('#hud').classList.remove('hidden');
   respawn(); me.deaths = 0; hostReady = false; isHost = false; room = null;
-  if (kind !== 'solo') {
+  {
     try { localStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}}); }
-    catch (e) { localStream = null; sys('Micro refusé : vos amis ne vous entendront pas.'); }
+    catch (e) { localStream = null; sys('Micro refusé ou introuvable : autorisez-le avec l\'icône micro de la barre d\'adresse.'); }
+    if (localStream) { try { AC = AC || new AudioContext(); AC.resume(); levelAn = AC.createAnalyser(); levelAn.fftSize = 512; AC.createMediaStreamSource(localStream).connect(levelAn); } catch (e) { levelAn = null; } }
   }
   if (kind === 'host') {
     sys('Création de la partie…');
@@ -880,7 +882,7 @@ $('#solo').onclick = () => begin('solo');
 $('#code').addEventListener('keydown', e => { if (e.key === 'Enter') begin('join'); });
 
 /* ---------- loop ---------- */
-const clock = new THREE.Clock(); let T = 0, callT = 0;
+const clock = new THREE.Clock(); let T = 0, callT = 0, levelAn = null, wdT = 0; const lvBuf = new Uint8Array(512);
 function loop(){
   requestAnimationFrame(loop);
   const dt = Math.min(clock.getDelta(), .05); T += dt;
@@ -904,6 +906,9 @@ function loop(){
     camera.rotation.set(me.dead ? -.6 : me.pitch, me.yaw, 0);
     syncOthers(dt); sendPresence(dt); computeHost();
     callT -= dt; if (callT <= 0) { callT = 1; ensureCalls(); }
+    if (levelAn) { levelAn.getByteTimeDomainData(lvBuf); let q = 0; for (let i = 0; i < lvBuf.length; i++) { const v = (lvBuf[i] - 128)/128; q += v*v; } $('#lvl u').style.width = Math.min(100, Math.sqrt(q/lvBuf.length)*400) + '%'; }
+    /* chien de garde : relance la reconnaissance si elle s'est arrêtée toute seule */
+    wdT -= dt; if (wdT <= 0) { wdT = 1.5; if (SR && micWanted && !recOn) startMic(); else if (SR && micWanted && recOn && lastRes && now() - lastRes > 45) { lastRes = now(); try { rec.abort(); } catch (e) {} } }
     for (const [id, a] of audios) { const o = others.get(id); const d = o ? Math.hypot(o.g.position.x - me.x, o.g.position.z - me.z) : 0; a.volume = clamp(1 - d/70, .25, 1); }
     if (isHost) hostStep(dt);
     updHud(dt);
