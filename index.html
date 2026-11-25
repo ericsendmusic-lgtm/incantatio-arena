@@ -483,10 +483,10 @@ const ENVT = {cobble:RTX('cobble', 22), grass:RTX('grass', 70), carved:RTX('carv
 function texturize(m, c){ const k = TEXK[c]; if (!k || !DET[k]) return; if (DET[k].real) { m.map = DET[k].map; m.normalMap = DET[k].normal; m.roughness = KPROP[k].r; m.color.set(0xffffff).lerp(new THREE.Color(c), .25); m.needsUpdate = true; return; } m.map = DET[k].map; m.normalMap = DET[k].normal; m.roughness = KPROP[k].r; if (KPROP[k].m) m.metalness = KPROP[k].m; m.color.multiplyScalar(k === 'metal' ? 1.1 : 1.25); m.needsUpdate = true; }
 
 /* ---------- ciel animé : dégradé, nuages qui défilent, halo de lune ---------- */
-const SKY_U = {uT:{value:0}, uMoon:{value:new THREE.Vector3(-150, 170, 100).normalize()}};
+const SKY_U = {uT:{value:0}, uMoon:{value:new THREE.Vector3(-150, 170, 100).normalize()}, uTint:{value:new THREE.Vector3(1, 1, 1)}, uFlash:{value:0}};
 const skyMat = new THREE.ShaderMaterial({uniforms:SKY_U, side:THREE.BackSide, depthWrite:false, fog:false,
   vertexShader:'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-  fragmentShader:`uniform float uT; uniform vec3 uMoon; varying vec3 vP;
+  fragmentShader:`uniform float uT; uniform vec3 uMoon; uniform vec3 uTint; uniform float uFlash; varying vec3 vP;
   float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)))*43758.5453); }
   float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3. - 2.*f); return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
   float fb(vec2 p){ float s = 0., a = .5; for (int i = 0; i < 5; i++){ s += a*n(p); p *= 2.03; a *= .5; } return s; }
@@ -496,7 +496,7 @@ const skyMat = new THREE.ShaderMaterial({uniforms:SKY_U, side:THREE.BackSide, de
     float m = max(dot(d, uMoon), 0.); col += vec3(.75, .82, 1.)*pow(m, 60.)*.7 + vec3(.45, .55, .75)*pow(m, 6.)*.07;
     vec2 uv = d.xz/(y + .28)*1.35 + vec2(uT*.01, uT*.004); float c = fb(uv), c2 = fb(uv*1.9 + 3.); float a = smoothstep(.4, .76, c)*smoothstep(-.02, .2, y)*(1. - smoothstep(.82, 1., y));
     vec3 cc = mix(vec3(.3, .34, .44), vec3(.8, .83, .9), smoothstep(.42, .9, c2)*.75 + pow(m, 6.)*.35 + w*.3); col = mix(col, cc, a*.9);
-    gl_FragColor = vec4(col, 1.); }`});
+    gl_FragColor = vec4(col*uTint + uFlash, 1.); }`});
 { const sk = new THREE.Mesh(new THREE.SphereGeometry(420, 32, 16), skyMat); sk.renderOrder = -1; scene.add(sk); }
 
 /* ---------- reflets d'environnement : la lune et le ciel se reflètent sur les matériaux ---------- */
@@ -731,6 +731,7 @@ function terrainH(x, z){ const r = Math.hypot(x, z); if (r < 48.6) return -.05;
 /* centre plat (0 m) ; 1re terrasse à 22 m (+1,2 m) ; 2e terrasse à 32 m (+2,4 m) ; galerie à 41 m (+3,6 m).
    Grands escaliers face aux 4 portes, éboulis praticables sur les 4 autres axes, escaliers extérieurs qui descendent vers les portes. */
 const AR = {lv:[[22, 1.2], [32, 2.4], [41, 3.6]], tread:.675, sw:3, cw:.5, rw:2.2, rrun:3.6, edge:46.7, rail:46.25, top:3.6, oTread:.53, oRise:.3, ow:2.2, ball:46.95};
+const RELIEF_MATS = [], ARCS = [], BAL_IM = {im:null, list:[]};
 const AXG = [1, 3, 5, 7].map(k => k*Math.PI/4).map(a => [Math.cos(a), Math.sin(a), a]), AXR = [0, 2, 4, 6].map(k => k*Math.PI/4).map(a => [Math.cos(a), Math.sin(a), a]);
 function angDist(a, b){ let d = Math.abs(a - b) % (Math.PI*2); return d > Math.PI ? Math.PI*2 - d : d; }
 /* distance latérale à l'axe le plus proche, et distance le long de cet axe */
@@ -843,7 +844,7 @@ function column(x, z, h, broken){ const seed = Math.round(Math.random()*2), key 
   if (!COLS.has(key)) COLS.set(key, {h, broken, seed, list:[]}); COLS.get(key).list.push({x, z, ry:Math.atan2(x, z)});
   if (broken) for (let i = 0; i < 3; i++) DEBRIS.push({x:x + Math.cos(i*2.1 + x)*2.2, z:z + Math.sin(i*2.1 + x)*2.2, s:.8 + i*.25, kind:i ? 'chunk' : 'drum', ry:Math.random()*6});
   IVY_SPOTS.push({x, z, h:broken ? h*.5 : h}); OBS.push({x, z, r:1.3}); }
-function buildColumns(){ for (const c of COLS.values()) { const im = new THREE.InstancedMesh(gothicColumnGeo(c.h, c.broken, c.seed), stoneMat, c.list.length); c.list.forEach((p, i) => { DUM2.position.set(p.x, groundH(p.x, p.z), p.z); DUM2.rotation.set(0, p.ry, 0); DUM2.scale.set(1, 1, 1); DUM2.updateMatrix(); im.setMatrixAt(i, DUM2.matrix); }); im.castShadow = im.receiveShadow = true; scene.add(im); } }
+function buildColumns(){ for (const c of COLS.values()) { const im = new THREE.InstancedMesh(gothicColumnGeo(c.h, c.broken, c.seed), stoneMat, c.list.length); c.list.forEach((p, i) => { DUM2.position.set(p.x, groundH(p.x, p.z), p.z); DUM2.rotation.set(0, p.ry, 0); DUM2.scale.set(1, 1, 1); DUM2.updateMatrix(); im.setMatrixAt(i, DUM2.matrix); }); im.castShadow = im.receiveShadow = true; scene.add(im); c.im = im; } }
 
 const BANNERS = ['#ff7a2a','#d58cff','#6fdcff','#ffe259','#7dff9c'];
 for (let i = 0; i < 8; i++) { const a = i/8*Math.PI*2 + .2; column(Math.cos(a)*21, Math.sin(a)*21, 5 + (i % 3), i % 2 === 1); }
@@ -851,7 +852,7 @@ for (let i = 0; i < 8; i++) { const a = i/8*Math.PI*2 + .2; column(Math.cos(a)*2
 for (let i = 0; i < 16; i++) { const a = i/16*Math.PI*2 + Math.PI/16, broken = i % 4 === 3; column(Math.cos(a)*38, Math.sin(a)*38, 7.4, broken);
   if (i % 2 === 0) { const a2 = (i + 1)/16*Math.PI*2 + Math.PI/16, mid = (a + a2)/2, span = 2*38*Math.sin(Math.PI/16);
     const arc = new THREE.Group(); arc.position.set(Math.cos(mid)*38*Math.cos(Math.PI/16), 9 + AR.lv[1][1], Math.sin(mid)*38*Math.cos(Math.PI/16)); arc.rotation.y = -mid + Math.PI/2; scene.add(arc);
-    stoneArch(arc, span, 3.4, 1.2, 15, i % 4 ? stoneMat : darkStone);
+    stoneArch(arc, span, 3.4, 1.2, 15, i % 4 ? stoneMat : darkStone); ARCS.push(arc);
     const bn = new THREE.Mesh(geo('bn2', () => { const gg = new THREE.PlaneGeometry(2, 4.6, 6, 10), p = gg.attributes.position; for (let k = 0; k < p.count; k++) { const y = p.getY(k); if (y < -2.1) p.setY(k, y - Math.abs(Math.sin(p.getX(k)*6))*.35); } return gg; }), new THREE.MeshStandardMaterial({color:new THREE.Color(0xffffff).lerp(new THREE.Color(BANNERS[(i/2) % 5]), .35), side:THREE.DoubleSide, roughness:.95, map:ENVT.banner.map, normalMap:ENVT.banner.normal}));
     bn.position.set(0, -.2, 0); arc.add(bn); BANNER_MESH.push(bn); } }
 
@@ -879,7 +880,7 @@ const leafMat = new THREE.MeshStandardMaterial({map:LEAF_T, alphaTest:.45, side:
     for (let j = 0; j < nr; j++) for (let k = 0; k < na; k++) { const a = j*(na + 1) + k, b = a + 1, c = a + na + 1, d = c + 1, rm = R0 + (R1 - R0)*(j + .5)/nr, am = (k + .5)/na*Math.PI*2; if (skip(Math.cos(am)*rm, Math.sin(am)*rm)) continue; I.push(a, b, c, b, d, c); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.setIndex(I); return g; };
   const earthMat = new THREE.MeshStandardMaterial({map:DET.moss.map, normalMap:DET.moss.normal, color:0x4c5a38, roughness:1}); addRim(earthMat, .05);
-  const wallMat = new THREE.MeshStandardMaterial({map:ENVT.wall.map, normalMap:ENVT.wall.normal, normalScale:new THREE.Vector2(1.5, 1.5), color:0xc4baa8, roughness:.92}); addRim(wallMat, .2); addMossTop(wallMat, .25);
+  const wallMat = new THREE.MeshStandardMaterial({map:ENVT.wall.map, normalMap:ENVT.wall.normal, normalScale:new THREE.Vector2(1.5, 1.5), color:0xc4baa8, roughness:.92}); addRim(wallMat, .2); addMossTop(wallMat, .25); RELIEF_MATS.push(earthMat, wallMat);
   const add = (g, m, cast) => { const o = new THREE.Mesh(g, m); o.receiveShadow = true; o.castShadow = !!cast; scene.add(o); return o; };
   const RELIEF_PARTS = [];
   /* les dessus de terrasse (percés aux escaliers et aux éboulis) */
@@ -908,7 +909,7 @@ const leafMat = new THREE.MeshStandardMaterial({map:LEAF_T, alphaTest:.45, side:
   { const gaps = AXG.map(([c, s, a]) => [a, Math.asin((AR.ow + .25)/AR.ball)]), arcs = keptArcs(gaps), bal = [], rail = [];
     for (const [a1, a2] of arcs) { const n = Math.max(1, Math.round((a2 - a1)*AR.ball/.42)); for (let k = 0; k <= n; k++) bal.push(a1 + (a2 - a1)*k/n); const m = Math.max(1, Math.round((a2 - a1)*AR.ball/1.05)); for (let k = 0; k < m; k++) rail.push([a1 + (a2 - a1)*(k + .5)/m, (a2 - a1)*AR.ball/m]); }
     const balG = geo('baluster', () => new THREE.LatheGeometry([[0, 0], [.13, 0], [.13, .08], [.08, .14], [.12, .3], [.13, .42], [.07, .6], [.06, .7], [.1, .76], [.1, .82], [0, .82]].map(([x, y]) => new THREE.Vector2(x, y)), 8));
-    const ib = new THREE.InstancedMesh(balG, stoneMat, bal.length); bal.forEach((a, i) => { DUM2.position.set(Math.cos(a)*AR.ball, AR.top + .14, Math.sin(a)*AR.ball); DUM2.rotation.set(0, 0, 0); DUM2.scale.set(1, 1, 1); DUM2.updateMatrix(); ib.setMatrixAt(i, DUM2.matrix); }); ib.castShadow = true; scene.add(ib);
+    const ib = new THREE.InstancedMesh(balG, stoneMat, bal.length); bal.forEach((a, i) => { DUM2.position.set(Math.cos(a)*AR.ball, AR.top + .14, Math.sin(a)*AR.ball); DUM2.rotation.set(0, 0, 0); DUM2.scale.set(1, 1, 1); DUM2.updateMatrix(); ib.setMatrixAt(i, DUM2.matrix); BAL_IM.list.push(DUM2.matrix.clone()); }); ib.castShadow = true; scene.add(ib); BAL_IM.im = ib;
     for (const [y, hh, dd] of [[AR.top + .07, .16, .46], [AR.top + 1.02, .16, .4]]) { const ir = new THREE.InstancedMesh(blockGeo(1, hh, dd), darkStone, rail.length); rail.forEach(([a, w], i) => { DUM2.position.set(Math.cos(a)*AR.ball, y, Math.sin(a)*AR.ball); DUM2.rotation.set(0, -a + Math.PI/2, 0); DUM2.scale.set(w*1.01, 1, 1); DUM2.updateMatrix(); ir.setMatrixAt(i, DUM2.matrix); }); ir.castShadow = ir.receiveShadow = true; scene.add(ir); } }
   /* mur extérieur : l'arène domine les marches et les portes */
   add(quads(48.95, -2.2, AR.top + .02, AXG.map(([c, s, a]) => [a, Math.asin((AR.ow + .55)/48.95)]), true), wallMat, true);
@@ -919,7 +920,7 @@ const leafMat = new THREE.MeshStandardMaterial({map:LEAF_T, alphaTest:.45, side:
     add(mergeGeos(parts), stoneMat, true); add(mergeGeos(sideParts), darkStone, true); }
 }
 /* ---------------- DÉTAILS SCULPTÉS : ruines à étages, rochers, aiguilles de pierre ---------------- */
-{ const rockMat = new THREE.MeshStandardMaterial({map:ENVT.wall.map, normalMap:ENVT.wall.normal, normalScale:new THREE.Vector2(1.8, 1.8), color:0x9a9488, roughness:.95}); addRim(rockMat, .25); addMossTop(rockMat, .4);
+{ const rockMat = new THREE.MeshStandardMaterial({map:ENVT.wall.map, normalMap:ENVT.wall.normal, normalScale:new THREE.Vector2(1.8, 1.8), color:0x9a9488, roughness:.95}); addRim(rockMat, .25); addMossTop(rockMat, .4); RELIEF_MATS.push(rockMat);
   const rockGeo = k => geo('rockS' + k, () => { const g = new THREE.IcosahedronGeometry(1, 2), p = g.attributes.position;
     for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), n = vnoise(x*1.7 + k*13, z*1.7 + y*1.3, 77)*.55 + vnoise(x*4 + k, y*4 + z*3, 78)*.2, f = .7 + n; p.setXYZ(i, x*f*(1 + (k % 3)*.18), Math.max(-.3, y*f*.75), z*f); }
     g.computeVertexNormals(); return g; });
@@ -1238,6 +1239,218 @@ function updateAtmosphere(dt){
 function aaaQuality(hi){ const s = hi ? 2048 : 1024; if (moon.shadow.mapSize.x !== s) { moon.shadow.mapSize.set(s, s); if (moon.shadow.map) { moon.shadow.map.dispose(); moon.shadow.map = null; } } if (AAA.dust) AAA.dust.visible = hi; AAA.rays.forEach(r => r.g.visible = hi); }
 
 setupAAARendering();
+/* ===================== ARÈNE VIVANTE : biomes, transformations, dangers, destruction ===================== */
+/* Le biome se déduit de la vague (identique chez tous les joueurs, sans message réseau) ; la transformation dure 12 s pendant la pause entre deux vagues.
+   Les dangers d'arène visent le joueur local (chacun voit les siens) ; les effets des sorts sur l'arène sont décidés par l'hôte. */
+const BIO_INFO = {
+  base:{n:'Ruines', el:null, tip:''},
+  volcan:{n:'Arène volcanique', el:'fire', tip:'Les fissures rougeoyantes brûlent toutes les 7 s : sortez des cercles qui s\'illuminent. Les fumerolles vous projettent en l\'air. Un sort de Glace fige une fissure. Feu +15 %.'},
+  glace:{n:'Arène glaciale', el:'ice', tip:'Les plaques de glace font glisser. Les stalactites tombent sur les cercles bleus. Un sort de Feu fait fondre une plaque. Glace +15 %.'},
+  corrompu:{n:'Arène corrompue', el:'shadow', tip:'Les gouffres violets brûlent l\'âme : n\'y restez pas. Des racines surgissent sous vos pieds (cercle violet). Les améthystes protègent les monstres : brisez-les avec la Foudre. Ombre +15 %.'},
+  orage:{n:'Tempête magique', el:'storm', tip:'La foudre tombe sur les cercles blancs, sur vous comme sur les monstres. Foudre +15 %.'},
+  temple:{n:'Temple du Cristal', el:null, tip:'Les secteurs de runes s\'allument à tour de rôle : quittez le secteur qui brille avant l\'éclat.'} };
+function biomeFor(w){ if (w <= 5) return 'base'; if (w <= 10) return 'volcan'; if (w <= 15) return 'glace'; if (w <= 18) return 'corrompu'; if (w === 19) return 'orage'; if (w === 20) return 'temple';
+  return ['orage', 'volcan', 'corrompu', 'glace'][Math.floor((w - 21)/5) % 4]; }
+const BIO = {cur:'base', prev:'base', k:1, groups:{}, hz:{}, dest:0};
+const BIO_U = {uLava:{value:0}, uFrost:{value:0}, uCorr:{value:0}, uWet:{value:0}, uRune:{value:0}, uFront:{value:99}, uPulse:{value:0}, uBT:{value:0}, uSect:{value:new THREE.Vector2(-1, 0)},
+  uLF:{value:[0, 1, 2, 3, 4].map(() => new THREE.Vector4(0, 0, 0, 0))}};
+let BIO_N = 0;
+const BIO_GLSL = `
+float bh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)))*43758.5453); }
+float bn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3. - 2.*f); return mix(mix(bh(i), bh(i + vec2(1, 0)), f.x), mix(bh(i + vec2(0, 1)), bh(i + vec2(1, 1)), f.x), f.y); }
+float bfb(vec2 p){ return bn(p)*.55 + bn(p*2.13 + 7.)*.3 + bn(p*4.37 + 3.)*.15; }
+float bline(vec2 p, float w){ return 1. - smoothstep(0., w, abs(bfb(p) - .5)); }
+float bmask(){ return 1. - smoothstep(uFront - 6., uFront, length(vBW.xz)); }
+float bup(){
+#ifdef FLAT_SHADED
+ return 1.;
+#else
+ return smoothstep(.5, .85, dot(normalize(vNormal), normalize((viewMatrix*vec4(0., 1., 0., 0.)).xyz)));
+#endif
+}
+float blf(){ float m = 0.; for (int i = 0; i < 5; i++){ vec4 f = uLF[i]; if (f.z > 0.) m = max(m, (1. - smoothstep(f.z*.6, f.z, length(vBW.xz - f.xy)))*f.w); } return m; }
+float bsect(){ if (uSect.x < 0.) return 0.; float r = length(vBW.xz); if (r > 21.) return 0.; float a = atan(vBW.z, vBW.x); float s = floor((a + 3.14159265)/0.7853982); return (mod(s, 2.) == uSect.x ? 1. : 0.)*smoothstep(21., 19., r)*smoothstep(6.5, 7.5, r); }
+void bioDiffuse(inout vec3 c){ float m = bmask();
+  float lv = uLava*m; c = mix(c, c*vec3(.34, .29, .28), lv*.85);
+  float fr = uFrost*m*smoothstep(.32, .52, bfb(vBW.xz*.18 + 11.))*(.3 + .7*bup()); c = mix(c, vec3(.6, .7, .8), fr*.62);
+  float co = uCorr*m; c = mix(c, c*vec3(.42, .32, .55), co*.8);
+  float we = uWet*m; c *= 1. - we*.38; }
+float bioRough(float r){ float m = bmask(), u = bup(); float fr = uFrost*m*smoothstep(.32, .52, bfb(vBW.xz*.18 + 11.))*u; return mix(mix(r, .38, fr*.8), .2, uWet*m*.8*u); }
+vec3 bioEmit(){ float m = bmask(); vec3 e = vec3(0.); vec2 p = vBW.xz;
+  if (uLava > 0.) { float u = bup(), cr = max(bline(p*.3, .04), bline(p*.8 + 5., .025)*.5)*u; float f = blf(); e += vec3(1., .3, .05)*cr*uLava*m*(.9 + f*(2.5 + uPulse*9.)) + vec3(1., .25, .04)*f*u*uPulse*uLava*.6; }
+  if (uCorr > 0.) { float u = bup(), cr = bline(p*.45 + 21., .035)*u; float f = blf(); e += vec3(.62, .18, 1.)*(cr*1.1 + f*u*1.4)*uCorr*m; }
+  if (uRune > 0.) { float r = length(p); float ring = max(max(1. - smoothstep(0., .1, abs(r - 8.)), 1. - smoothstep(0., .08, abs(r - 14.))), 1. - smoothstep(0., .1, abs(r - 20.))); float a = atan(p.y, p.x); float sp = (1. - smoothstep(0., .07, abs(sin(a*4.))*r*.25))*step(7.5, r)*step(r, 20.5);
+    float u = bup(); e += (vec3(.55, .8, 1.)*(ring + sp*.8)*uRune*m*1.5 + vec3(.7, .9, 1.)*bsect()*uRune*(.4 + uPulse*3.))*u; }
+  return e; }
+`;
+function biomeShade(m){ if (!m || m.userData.bio) return; m.userData.bio = 1; const prev = m.onBeforeCompile, key = 'bio' + (BIO_N++); m.customProgramCacheKey = () => key;
+  m.onBeforeCompile = (sh, r) => { if (prev) prev(sh, r); Object.assign(sh.uniforms, BIO_U);
+    sh.vertexShader = 'varying vec3 vBW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n{ vec4 bwp = vec4(transformed, 1.);\n#ifdef USE_INSTANCING\n bwp = instanceMatrix*bwp;\n#endif\n vBW = (modelMatrix*bwp).xyz; }');
+    sh.fragmentShader = 'uniform float uLava, uFrost, uCorr, uWet, uRune, uFront, uPulse, uBT; uniform vec2 uSect; uniform vec4 uLF[5]; varying vec3 vBW;\n' + sh.fragmentShader
+      .replace('void main() {', BIO_GLSL + '\nvoid main() {')
+      .replace('#include <map_fragment>', '#include <map_fragment>\n bioDiffuse(diffuseColor.rgb);')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = bioRough(roughnessFactor);')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += bioEmit();'); }; }
+[stoneFloorMat, stoneMat, darkStone].concat(RELIEF_MATS).forEach(biomeShade);
+
+/* ---- ambiance de chaque biome : lumière, brouillard, ciel ---- */
+const BIO_L = {
+  base:{sky:0xb8cae6, gnd:0x5a5444, hi:1.7, moon:0xdfe6ff, mi:2.5, fog:0x96a4b4, fd:.0066, tint:[1, 1, 1], alt:0x5ad8ff, ex:1.2},
+  volcan:{sky:0xd8a080, gnd:0x6a2410, hi:1.5, moon:0xffc39a, mi:2, fog:0x8a5a48, fd:.0088, tint:[1.12, .62, .46], alt:0xff6a2a, ex:1.15},
+  glace:{sky:0xc4d8f4, gnd:0x6c8098, hi:1.45, moon:0xe2eeff, mi:2.2, fog:0xa6bad0, fd:.0086, tint:[.86, .96, 1.1], alt:0x9fe6ff, ex:1.05},
+  corrompu:{sky:0x9a7cc0, gnd:0x3a1650, hi:1.4, moon:0xcaa8ff, mi:1.7, fog:0x5e4a80, fd:.009, tint:[.78, .6, 1.05], alt:0xb06aff, ex:1.15},
+  orage:{sky:0x8a98b4, gnd:0x383a46, hi:1.3, moon:0xc2cae2, mi:1.5, fog:0x586274, fd:.0105, tint:[.55, .6, .72], alt:0xcfd8ff, ex:1.1},
+  temple:{sky:0xc6d4ff, gnd:0x5c5c80, hi:1.8, moon:0xeef2ff, mi:2.6, fog:0x9eaad2, fd:.0074, tint:[.86, .9, 1.15], alt:0xbfe6ff, ex:1.22} };
+const HEMI = scene.children.find(o => o.isHemisphereLight);
+const _ca = new THREE.Color(), _cb = new THREE.Color();
+function bioLight(){ const A = BIO_L[BIO.prev], B = BIO_L[BIO.cur], k = BIO.k, mix = (a, b) => _ca.set(a).lerp(_cb.set(b), k);
+  if (HEMI) { HEMI.color.copy(mix(A.sky, B.sky)); HEMI.groundColor.copy(mix(A.gnd, B.gnd)); HEMI.intensity = A.hi + (B.hi - A.hi)*k; }
+  moon.color.copy(mix(A.moon, B.moon)); moon.intensity = A.mi + (B.mi - A.mi)*k; scene.fog.color.copy(mix(A.fog, B.fog)); scene.fog.density = A.fd + (B.fd - A.fd)*k;
+  SKY_U.uTint.value.set(A.tint[0] + (B.tint[0] - A.tint[0])*k, A.tint[1] + (B.tint[1] - A.tint[1])*k, A.tint[2] + (B.tint[2] - A.tint[2])*k);
+  altarLight.color.copy(mix(A.alt, B.alt)); renderer.toneMappingExposure = A.ex + (B.ex - A.ex)*k;
+  const w = (n, v) => (BIO.cur === n ? k : 0) + (BIO.prev === n && BIO.prev !== BIO.cur ? 1 - k : 0)*v;
+  BIO_U.uLava.value = w('volcan', 1); BIO_U.uFrost.value = w('glace', 1); BIO_U.uCorr.value = w('corrompu', 1); BIO_U.uWet.value = w('orage', 1); BIO_U.uRune.value = w('temple', 1);
+  BIO_U.uFront.value = BIO.k < 1 ? 4 + BIO.k*70 : 99; FLAME_U.uIce && (FLAME_U.uIce.value = w('glace', 1)); }
+
+/* ---- décors propres à chaque biome (construits à l'arrivée, détruits au départ) ---- */
+const LAVA_U = {uT:{value:0}};
+const BIO_SPOTS = { /* zones de danger fixes */
+  volcan:[[11, -14, 3.2], [-15, 6, 3.2], [3, 16, 3], [27, 6, 3], [-25, -15, 3]],
+  vents:[[-8, -9], [16, 2], [-4, 15], [0, -27]],
+  glace:[[9, 9, 3.8], [-11, -7, 3.8], [-6, 13, 3.4], [14, -11, 3.4], [-28, 3, 3.4]],
+  corrompu:[[8, -11, 2.8], [-12, 9, 2.8], [15, 12, 2.6], [-17, -12, 2.6], [26, -12, 2.6]] };
+function bioBuild(n){ const g = new THREE.Group(); g.userData.parts = []; scene.add(g);
+  const ins = (geom, mt, list, fn) => { const im = new THREE.InstancedMesh(geom, mt, list.length); list.forEach((v, i) => { fn(v, DUM2, i); DUM2.updateMatrix(); im.setMatrixAt(i, DUM2.matrix); }); im.castShadow = true; g.add(im); return im; };
+  if (n === 'volcan') {
+    const lava = new THREE.Mesh(new THREE.RingGeometry(49.3, 58.5, 160, 4), new THREE.ShaderMaterial({uniforms:LAVA_U, fog:false,
+      vertexShader:'varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+      fragmentShader:`uniform float uT; varying vec2 vP; float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)))*43758.5453); } float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3. - 2.*f); return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+        void main(){ vec2 p = vP*.25; float a = atan(vP.y, vP.x); p += vec2(cos(a), sin(a))*uT*.15; float v = n(p + n(p*1.7 + uT*.2)*1.6)*.7 + n(p*3.1 - uT*.3)*.3; float crust = smoothstep(.55, .7, v);
+          vec3 c = mix(vec3(1.6, .55, .08), vec3(2.4, 1.3, .3), smoothstep(.2, .45, v)); c = mix(c, vec3(.08, .03, .02), crust*.9); gl_FragColor = vec4(c, 1.); }`}));
+    lava.rotation.x = -Math.PI/2; lava.position.y = -1.45; g.add(lava);
+    const obs = new THREE.MeshStandardMaterial({color:0x14101a, roughness:.18, metalness:.3, envMapIntensity:1.2}), sp = [];
+    for (let i = 0; i < 46; i++) { let x, z, r; do { const a = Math.random()*Math.PI*2; r = i < 26 ? [23, 33, 42][i % 3] + 1 + Math.random()*1.6 : 50 + Math.random()*8; x = Math.cos(a)*r; z = Math.sin(a)*r; } while (r < 47 && (inStairZone(x, z) || platH(x, z) !== null)); sp.push([x, z, .5 + Math.random()*1.3]); }
+    ins(geo('obsSp', () => new THREE.ConeGeometry(.5, 3, 5).translate(0, 1.4, 0)), obs, sp, ([x, z, s], d) => { d.position.set(x, (Math.hypot(x, z) < 49 ? groundH(x, z) : -1.5) - .2, z); d.rotation.set((Math.random() - .5)*.4, Math.random()*6, (Math.random() - .5)*.4); d.scale.set(s, s*(1 + Math.random()), s); });
+    for (const [x, z] of BIO_SPOTS.vents) { const v = new THREE.Mesh(geo('vent', () => new THREE.TorusGeometry(.75, .28, 6, 12)), obs); v.rotation.x = Math.PI/2; v.position.set(x, groundH(x, z) + .1, z); g.add(v); }
+  }
+  if (n === 'glace') {
+    const ice = new THREE.MeshPhysicalMaterial({color:0xbfe6ff, roughness:.08, metalness:0, transmission:0, transparent:true, opacity:.85, clearcoat:1, envMapIntensity:1.4, emissive:0x1a4a6a, emissiveIntensity:.4}), st = [], cr = [];
+    ARCS.forEach(a => { for (let k = 0; k < 7; k++) { const p = new THREE.Vector3((k - 3)*.9, -.4, (Math.random() - .5)*.8).applyMatrix4(a.matrixWorld); st.push([p.x, p.y - 1.2 + Math.sin(k*1.7)*.6, p.z, .5 + Math.random()*.7]); } });
+    for (let i = 0; i < 60; i++) { const a = Math.random()*Math.PI*2, r = AR.ball - .1; if (AXG.some(([c, s, ax]) => angDist(a, ax) < .06)) continue; st.push([Math.cos(a)*r, AR.top + .9, Math.sin(a)*r, .25 + Math.random()*.3]); }
+    ins(geo('stal', () => new THREE.ConeGeometry(.22, 2, 6).rotateX(Math.PI).translate(0, -1, 0)), ice, st, ([x, y, z, s], d) => { d.position.set(x, y, z); d.rotation.set(0, Math.random()*6, 0); d.scale.set(s, s*(1 + Math.random()), s); });
+    for (let i = 0; i < 40; i++) { let x, z, r; do { const a = Math.random()*Math.PI*2; r = [9, 23, 33, 43][i % 4] + Math.random()*2; x = Math.cos(a)*r; z = Math.sin(a)*r; } while (inStairZone(x, z) || platH(x, z) !== null); cr.push([x, z, .5 + Math.random()]); }
+    ins(geo('icecr', () => new THREE.OctahedronGeometry(.4).scale(.6, 2.4, .6)), ice, cr, ([x, z, s], d) => { d.position.set(x, groundH(x, z) + .3*s, z); d.rotation.set((Math.random() - .5)*.7, Math.random()*6, (Math.random() - .5)*.7); d.scale.setScalar(s); });
+    const N = 1800, pos = new Float32Array(N*3); for (let i = 0; i < N; i++) pos.set([(Math.random() - .5)*110, Math.random()*30, (Math.random() - .5)*110], i*3);
+    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); const snow = new THREE.Points(sg, new THREE.PointsMaterial({color:0xffffff, size:.16, transparent:true, opacity:.85, depthWrite:false})); snow.userData.snow = 1; g.add(snow);
+  }
+  if (n === 'corrompu') {
+    const am = new THREE.MeshStandardMaterial({color:0x9a4aff, emissive:0x6a1aff, emissiveIntensity:1.4, roughness:.25, metalness:.1}), cl = [];
+    for (const c of COLS.values()) for (const p of c.list) for (let k = 0; k < 4; k++) { const a = Math.random()*6.28, r = 1.1 + Math.random()*.6; cl.push([p.x + Math.cos(a)*r, p.z + Math.sin(a)*r, .5 + Math.random()*.9]); }
+    BIO.hz.ame = cl.filter((v, i) => i % 4 === 0).map(([x, z]) => ({x, z, alive:true}));
+    const im = ins(geo('amCr', () => new THREE.OctahedronGeometry(.45).scale(.55, 2, .55)), am, cl, ([x, z, s], d) => { d.position.set(x, groundH(x, z) + .3*s, z); d.rotation.set((Math.random() - .5)*.9, Math.random()*6, (Math.random() - .5)*.9); d.scale.setScalar(s); }); BIO.hz.ameIm = im;
+    const vm = new THREE.ShaderMaterial({uniforms:LAVA_U, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide,
+      vertexShader:'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+      fragmentShader:'uniform float uT; varying vec2 vUv; void main(){ float s = sin(vUv.x*25. - vUv.y*9. + uT*3.)*.5 + .5; float a = pow(s, 4.)*(1. - vUv.y)*smoothstep(0., .2, vUv.y); gl_FragColor = vec4(vec3(.6, .2, 1.)*a*1.4, 1.); }'});
+    const vx = new THREE.Mesh(new THREE.CylinderGeometry(6, .6, 14, 40, 8, true), vm); vx.position.y = 13; vx.userData.spin = 1.2; g.add(vx);
+    const deb = []; for (let i = 0; i < 40; i++) { const a = Math.random()*Math.PI*2, r = 12 + Math.random()*30; deb.push([Math.cos(a)*r, Math.sin(a)*r, .4 + Math.random()*.8, Math.random()*6]); }
+    const di = ins(geo('chunkB', () => new THREE.DodecahedronGeometry(.6, 0)), stoneMat, deb, ([x, z, s, p], d) => { d.position.set(x, groundH(x, z) + 3 + Math.sin(p)*1.5, z); d.rotation.set(p, p*2, 0); d.scale.setScalar(s); }); di.userData.float = deb;
+    const L = new THREE.PointLight(0xa040ff, 0, 40, 2); L.position.set(0, 2, 0); physicalLight(L); L.intensity = 2.2; g.add(L);
+  }
+  if (n === 'orage') {
+    const N = 2400, pos = new Float32Array(N*6); for (let i = 0; i < N; i++) { const x = (Math.random() - .5)*110, y = Math.random()*34, z = (Math.random() - .5)*110; pos.set([x, y, z, x - .15, y - 1.1, z], i*6); }
+    const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); const rain = new THREE.LineSegments(rg, new THREE.LineBasicMaterial({color:0xaab8d8, transparent:true, opacity:.35})); rain.userData.rain = 1; g.add(rain);
+    const pm = new THREE.ShaderMaterial({uniforms:LAVA_U, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide,
+      vertexShader:'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+      fragmentShader:'uniform float uT; varying vec2 vUv; void main(){ vec2 c = vUv - .5; float r = length(c)*2., a = atan(c.y, c.x); float sw = sin(a*5. + r*14. - uT*5.)*.5 + .5; float v = (1. - smoothstep(.7, 1., r))*(.35 + sw*.65)*(.4 + .6*r); gl_FragColor = vec4(vec3(.55, .3, 1.)*v*1.6, 1.); }'});
+    for (const [c, s, a] of AXG) { const p = new THREE.Mesh(geo('portal', () => new THREE.CircleGeometry(2.6, 40)), pm); p.position.set(c*53.2, 4.6, s*53.2); p.lookAt(0, 4.6, 0); g.add(p); }
+  }
+  if (n === 'temple') {
+    const gold = new THREE.MeshStandardMaterial({color:0xe8d8a8, emissive:0xbfe6ff, emissiveIntensity:1.2, metalness:.7, roughness:.3}), arm = new THREE.Group(); arm.position.y = 11; g.add(arm);
+    [[5.5, .12], [4.6, .1], [3.7, .09]].forEach(([r, t], i) => { const m = new THREE.Mesh(new THREE.TorusGeometry(r, t, 8, 90), gold); m.userData.spin = [.3, -.45, .6][i]; m.rotation.x = [0.4, 1.2, 2][i]; arm.add(m); });
+    const fl = []; for (let i = 0; i < 18; i++) { const a = i/18*Math.PI*2, r = 15 + (i % 3)*1.8; fl.push([Math.cos(a)*r, Math.sin(a)*r, 1 + (i % 2)*1.4, a]); }
+    const fi = ins(geo('flt', () => new THREE.BoxGeometry(1.6, .5, 1.6)), stoneMat, fl, ([x, z, y, a], d) => { d.position.set(x, y + 1.5, z); d.rotation.set(0, a, 0); d.scale.set(1, 1, 1); }); fi.userData.float = fl.map(([x, z, y, a]) => [x, z, 1, a]);
+    const cm = new THREE.MeshBasicMaterial({color:0xffc070}); fl.forEach(([x, z, y]) => { const c = new THREE.Mesh(geo('cand', () => new THREE.SphereGeometry(.12, 6, 6)), cm); c.position.set(x, y + 1.95, z); g.add(c); });
+  }
+  return g; }
+function bioDispose(g){ if (!g) return; scene.remove(g); g.traverse(o => { if (o.geometry && !Object.values(GEOS).includes(o.geometry)) o.geometry.dispose(); if (o.material && o.material !== stoneMat) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose()); } }); }
+
+/* ---- destruction cumulative : ce qu'un gardien abat reste abattu ---- */
+const DEST = {cols:[], arcs:[], bal:[]};
+function destInit(){ if (DEST.ready) return; DEST.ready = true;
+  for (const c of COLS.values()) c.list.forEach((p, i) => { const r = Math.hypot(p.x, p.z); if (Math.abs(r - 21) < .5) DEST.cols.push({c, i, p}); });
+  DEST.cols = DEST.cols.filter((v, i) => i === 1 || i === 5); DEST.arcs = ARCS.filter((a, i) => i === 1 || i === 5);
+  DEST.cols.forEach(d => { d.m0 = new THREE.Matrix4(); d.c.im.getMatrixAt(d.i, d.m0); d.obs = OBS.find(o => Math.abs(o.x - d.p.x) < .01 && Math.abs(o.z - d.p.z) < .01); });
+  DEST.arcs.forEach(a => { a.userData.orig = a.children.map(o => [o.position.clone(), o.quaternion.clone()]); }); }
+function destApply(level, instant){ destInit(); if (level === BIO.dest) return; const was = BIO.dest; BIO.dest = level;
+  if (level < was) { /* nouvelle partie : tout se relève */
+    DEST.cols.forEach(d => { d.c.im.setMatrixAt(d.i, d.m0); d.c.im.instanceMatrix.needsUpdate = true; if (d.obs && !OBS.includes(d.obs)) OBS.push(d.obs); (d.extra || []).forEach(o => { const j = OBS.indexOf(o); if (j >= 0) OBS.splice(j, 1); }); d.extra = null; d.t = null; });
+    DEST.arcs.forEach(a => { a.children.forEach((o, i) => { o.position.copy(a.userData.orig[i][0]); o.quaternion.copy(a.userData.orig[i][1]); o.userData.fall = null; }); a.userData.down = false; });
+    if (BAL_IM.im) { BAL_IM.list.forEach((m, i) => BAL_IM.im.setMatrixAt(i, m)); BAL_IM.im.instanceMatrix.needsUpdate = true; } NF.H = null; return; }
+  if (level >= 1 && was < 1) DEST.cols.forEach(d => { d.t = instant ? 1.6 : 0; const a = Math.atan2(d.p.z, d.p.x); d.dir = [Math.cos(a), Math.sin(a)]; const j = OBS.indexOf(d.obs); if (j >= 0) OBS.splice(j, 1); d.extra = [2.2, 4.2, 6].map(k => ({x:d.p.x + d.dir[0]*k, z:d.p.z + d.dir[1]*k, r:.75})); OBS.push(...d.extra); if (!instant) { shake = Math.max(shake, .4); } });
+  if (level >= 2 && was < 2) DEST.arcs.forEach(a => { a.updateMatrixWorld(true); a.children.forEach((o, i) => { o.userData.fall = {v:new THREE.Vector3((Math.random() - .5)*2, -1 - Math.random()*2, (Math.random() - .5)*2), w:(Math.random() - .5)*4, t:instant ? 9 : 0, done:false}; }); a.userData.down = true; });
+  if (level >= 3 && was < 3 && BAL_IM.im) { const a0 = Math.PI*1.12; BAL_IM.list.forEach((m, i) => { const p = new THREE.Vector3().setFromMatrixPosition(m); if (angDist(Math.atan2(p.z, p.x), a0) < .09) { BAL_IM.im.setMatrixAt(i, new THREE.Matrix4().makeScale(0, 0, 0)); if (!instant && i % 3 === 0) puff(p.x, p.y, p.z, '#cbbfa8', 6, 3, .6, .9, 1); } }); BAL_IM.im.instanceMatrix.needsUpdate = true; }
+  NF.H = null; }
+const _q = new THREE.Quaternion(), _m4 = new THREE.Matrix4(), _ax = new THREE.Vector3();
+function destTick(dt){ for (const d of DEST.cols) { if (d.t === null || d.t === undefined || d.t > 1.7) continue; d.t += dt; const k = Math.min(1, d.t/1.6), ang = Math.pow(k, 2.2)*Math.PI/2*(k >= 1 ? 1 : 1);
+    _ax.set(-d.dir[1], 0, d.dir[0]); _q.setFromAxisAngle(_ax, ang); _m4.compose(new THREE.Vector3(d.p.x, groundH(d.p.x, d.p.z), d.p.z), _q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(d.p.x, d.p.z))), new THREE.Vector3(1, 1, 1));
+    d.c.im.setMatrixAt(d.i, _m4); d.c.im.instanceMatrix.needsUpdate = true; if (k >= 1 && d.t - dt < 1.6) { shake = Math.max(shake, .6); puff(d.p.x + d.dir[0]*4, groundH(d.p.x, d.p.z) + .5, d.p.z + d.dir[1]*4, '#cbbfa8', 30, 6, 1.4, 1, 1.5); sfx('boom', .5); } }
+  for (const a of DEST.arcs) if (a.userData.down) a.children.forEach(o => { const f = o.userData.fall; if (!f || f.done) return; const steps = f.t >= 9 ? 60 : 1, h = f.t >= 9 ? .05 : dt;
+    for (let s = 0; s < steps && !f.done; s++) { f.v.y -= 18*h; o.position.addScaledVector(f.v, h); o.rotation.z += f.w*h; o.updateMatrixWorld(); const wp = new THREE.Vector3(); o.getWorldPosition(wp); if (wp.y < groundH(wp.x, wp.z) + .35) { f.done = true; } } f.t += dt; }); }
+
+/* ---- dangers d'arène pour le joueur local ---- */
+function bioMark(x, z, r, col, dur){ warnRing(x, z, r, col, dur); }
+function bioHazards(dt){ const n = BIO.cur, H = BIO.hz; if (BIO.k < 1 || !playing || me.dead || W.st === 'over') { BIO_U.uPulse.value = Math.max(0, BIO_U.uPulse.value - dt*2); return; }
+  H.t = (H.t || 0) + dt; const feet = me.y - 1.7;
+  if (n === 'volcan') { const cyc = H.t % 7; BIO_U.uPulse.value = cyc > 5.8 ? (cyc - 5.8)/1.2 : Math.max(0, BIO_U.uPulse.value - dt*3);
+    if (H.lastC !== Math.floor(H.t/7) && cyc < .3 && H.t > 7) { H.lastC = Math.floor(H.t/7); BIO_SPOTS.volcan.forEach(([x, z, r], i) => { if ((H.frozen && H.frozen[i] > T) || Math.hypot(me.x - x, me.z - z) > r) return; if (feet - groundH(x, z) < .6) { takeDamage(12, null); toast('La fissure vous brûle !'); } }); }
+    const vc = H.t % 9; BIO_SPOTS.vents.forEach(([x, z], i) => { const ph = (vc + i*1.7) % 9; if (ph > 7.8 && Math.random() < dt*20) puff(x, groundH(x, z) + .3, z, '#6a6460', 1, 1.5, .8, 1, 2.5);
+      if (ph < dt*1.01 && H.t > 3) { puff(x, groundH(x, z) + .5, z, '#ffd0a0', 26, 7, 1.2, 1.2, 4); if (Math.hypot(me.x - x, me.z - z) < 1.7 && feet - groundH(x, z) < .5) { me.vy = 12.5; me.onG = false; takeDamage(4, null); } } }); }
+  if (n === 'glace') { H.st = (H.st || 0) - dt; if (H.st <= 0) { H.st = 9; for (let k = 0; k < 2; k++) { const a = Math.random()*6.28, r = k ? Math.random()*1.5 : 2 + Math.random()*4, x = me.x + Math.cos(a)*r, z = me.z + Math.sin(a)*r; bioMark(x, z, 1.6, 0x9fe6ff, 1.2);
+      fx.push({delay:1.2, run:() => { puff(x, groundH(x, z) + .4, z, '#dff4ff', 22, 6, .9, .8, 1); sfx('ice', .4); if (Math.hypot(me.x - x, me.z - z) < 1.6) { takeDamage(18, null); toast('Une stalactite vous frappe !'); } }}); } } }
+  if (n === 'corrompu') { BIO_SPOTS.corrompu.forEach(([x, z, r]) => { if (Math.hypot(me.x - x, me.z - z) < r && feet - groundH(x, z) < .6) { H.burn = (H.burn || 0) + dt; if (H.burn > .5) { H.burn = 0; takeDamage(4, null); } } });
+    H.rt = (H.rt || 6) - dt; if (H.rt <= 0) { H.rt = 11; const x = me.x, z = me.z; bioMark(x, z, 1.4, 0xb06aff, .9); fx.push({delay:.9, run:() => { puff(x, groundH(x, z) + .3, z, '#5a2a8a', 18, 4, .8, .9, 1.5); if (Math.hypot(me.x - x, me.z - z) < 1.4) { H.root = T + 1.2; toast('Des racines vous retiennent !'); } }}); } }
+  if (n === 'orage') { H.lt = (H.lt || 2) - dt; if (H.lt <= 0) { H.lt = 4.5 + Math.random()*1.5; const pts = [[me.x + (Math.random() - .5)*7, me.z + (Math.random() - .5)*7]]; if (isHost) { const ms = [...mons.values()]; if (ms.length) { const m = ms[Math.floor(Math.random()*ms.length)]; pts.push([m.x, m.z]); } }
+      pts.forEach(([x, z], i) => { bioMark(x, z, 2.4, 0xeef2ff, 1); fx.push({delay:1, run:() => { const y = groundH(x, z); lightning([new THREE.Vector3(x + (Math.random() - .5)*4, 32, z + (Math.random() - .5)*4), new THREE.Vector3(x, y + .1, z)], '#dfe6ff', .35, .14, .06); flash(x, y + 2, z, '#dfe6ff', 9, .3); SKY_U.uFlash.value = .5; sfx('zap', .6); shake = Math.max(shake, .25);
+        if (Math.hypot(me.x - x, me.z - z) < 2.4) takeDamage(20, null); if (isHost) for (const m of [...mons.values()]) if (Math.hypot(m.x - x, m.z - z) < 2.4 + MT[m.type].r) hurt(m, 40, {el:'storm'}, 0, 0, null); }}); }); } }
+  if (n === 'temple') { const cyc = H.t % 9, s = Math.floor(H.t/9) % 2; BIO_U.uSect.value.set(cyc > 6.6 ? s : -1, 0); BIO_U.uPulse.value = cyc > 6.6 ? (cyc - 6.6)/1.2 : 0;
+    if (H.lastS !== Math.floor(H.t/9) && cyc > 7.8) { H.lastS = Math.floor(H.t/9); const r = Math.hypot(me.x, me.z), sec = Math.floor((Math.atan2(me.z, me.x) + Math.PI)/(Math.PI/4)); if (r > 7 && r < 21 && sec % 2 === s && feet - groundH(me.x, me.z) < 1) { takeDamage(14, null); toast('Les runes éclatent sous vos pieds !'); } flash(0, 3, 0, '#bfe6ff', 6, .4); } }
+  else BIO_U.uSect.value.set(-1, 0); }
+/* glisse sur la glace, racines : appelés par le déplacement du joueur */
+function bioMove(mx, mz, dt){ const H = BIO.hz; if (H.root && H.root > T) return [0, 0];
+  if (BIO.cur === 'glace' && BIO.k >= 1) { const onIce = BIO_SPOTS.glace.some(([x, z, r], i) => !(H.melt && H.melt[i] > T) && Math.hypot(me.x - x, me.z - z) < r) && me.onG !== false;
+    H.vx = H.vx || 0; H.vz = H.vz || 0; if (onIce) { H.vx += (mx - H.vx)*Math.min(1, dt*1.6); H.vz += (mz - H.vz)*Math.min(1, dt*1.6); return [H.vx, H.vz]; } H.vx = mx; H.vz = mz; }
+  return [mx, mz]; }
+/* les sorts agissent sur l'arène (décidé par l'hôte, envoyé à tous) */
+function bioSpell(el, x, z){ if (!isHost || BIO.k < 1) return; const H = BIO.hz;
+  if (BIO.cur === 'volcan' && el === 'ice') BIO_SPOTS.volcan.forEach(([fx_, fz, r], i) => { if (Math.hypot(x - fx_, z - fz) < r + 1.5) bioEnv('freeze', i); });
+  if (BIO.cur === 'glace' && el === 'fire') BIO_SPOTS.glace.forEach(([fx_, fz, r], i) => { if (Math.hypot(x - fx_, z - fz) < r + 1.5) bioEnv('melt', i); });
+  if (BIO.cur === 'corrompu' && el === 'storm' && H.ame) H.ame.forEach((a, i) => { if (a.alive && Math.hypot(x - a.x, z - a.z) < 2.2) bioEnv('shatter', i); }); }
+function bioEnv(kind, i){ if (isHost) W.hits.push(['env', kind, i]); const H = BIO.hz;
+  if (kind === 'freeze') { (H.frozen = H.frozen || [])[i] = T + 15; const s = BIO_SPOTS.volcan[i]; if (s) { puff(s[0], groundH(s[0], s[1]) + .4, s[1], '#bfe6ff', 24, 4, 1, 1, 1); toast('Fissure figée par la glace (15 s)'); } }
+  if (kind === 'melt') { (H.melt = H.melt || [])[i] = T + 15; const s = BIO_SPOTS.glace[i]; if (s) { puff(s[0], groundH(s[0], s[1]) + .4, s[1], '#e8f4ff', 30, 4, 1.2, 1.2, 2); toast('La plaque de glace fond (15 s)'); } }
+  if (kind === 'shatter' && H.ame && H.ame[i] && H.ame[i].alive) { const a = H.ame[i]; a.alive = false; puff(a.x, groundH(a.x, a.z) + 1, a.z, '#b06aff', 30, 7, 1, .8, 1.5); flash(a.x, groundH(a.x, a.z) + 1.5, a.z, '#b06aff', 6, .3); sfx('ice', .5);
+    if (isHost) for (const m of [...mons.values()]) if (Math.hypot(m.x - a.x, m.z - a.z) < 4) hurt(m, 30, {el:'storm'}, 0, 0, null); } }
+function bioHit(h){ if (h[0] === 'env' && typeof h[1] === 'string' && fin(h[2])) bioEnv(h[1], h[2]); }
+/* bonus d'école du biome, protection des améthystes */
+function bioDmg(m, dmg, el){ const I = BIO_INFO[BIO.cur]; if (BIO.k >= 1 && I && I.el && el === I.el) dmg *= 1.15;
+  if (BIO.cur === 'corrompu' && BIO.hz.ame && BIO.hz.ame.some(a => a.alive && Math.hypot(m.x - a.x, m.z - a.z) < 4)) dmg *= .7; return dmg; }
+
+/* ---- pilote : biome attendu, transition, mise à jour ---- */
+function bioTick(dt){ const want = W.st === 'over' || W.w === 0 ? 'base' : biomeFor(W.st === 'break' ? W.w + 1 : W.w);
+  destApply(W.w === 0 ? 0 : W.w > 15 ? 3 : W.w > 10 ? 2 : W.w > 5 ? 1 : 0, !BIO.started);
+  if (!BIO.started) { BIO.started = true; BIO.cur = BIO.prev = want; BIO.k = 1; if (want !== 'base') BIO.groups[want] = bioBuild(want); }
+  if (want !== BIO.cur) { if (BIO.prev !== BIO.cur && BIO.groups[BIO.prev]) { bioDispose(BIO.groups[BIO.prev]); delete BIO.groups[BIO.prev]; }
+    BIO.prev = BIO.cur; BIO.cur = want; BIO.k = 0; BIO.hz = {}; if (want !== 'base' && !BIO.groups[want]) BIO.groups[want] = bioBuild(want);
+    const I = BIO_INFO[want]; if (want !== 'base') { banner(I.n); toast(I.tip); sys(I.n + ' — ' + I.tip); } shake = Math.max(shake, .3); }
+  if (BIO.k < 1) { BIO.k = Math.min(1, BIO.k + dt/12); if (BIO.k >= 1 && BIO.prev !== BIO.cur && BIO.groups[BIO.prev]) { bioDispose(BIO.groups[BIO.prev]); delete BIO.groups[BIO.prev]; } }
+  for (const [n, g] of Object.entries(BIO.groups)) { const s = n === BIO.cur ? BIO.k : 1 - BIO.k; g.visible = s > .01; g.children.forEach(o => { if (o.isInstancedMesh || o.isMesh && !o.material.isShaderMaterial) o.scale.y = Math.max(.001, s); if (o.userData.spin) o.rotation.y += o.userData.spin*dt; if (o.children.length) o.children.forEach(c => { if (c.userData.spin) c.rotation.y += c.userData.spin*dt; });
+      if (o.userData.float) { o.userData.float.forEach(([x, z, s0, p], i) => { DUM2.position.set(x, groundH(x, z) + 3 + Math.sin(T*.8 + p)*.6, z); DUM2.rotation.set(p + T*.2, p*2, 0); DUM2.scale.setScalar(s0); DUM2.updateMatrix(); o.setMatrixAt(i, DUM2.matrix); }); o.instanceMatrix.needsUpdate = true; }
+      if (o.userData.snow) { const a = o.geometry.attributes.position; for (let i = 0; i < a.count; i++) { let y = a.getY(i) - dt*2.2; if (y < 0) y += 30; a.setY(i, y); a.setX(i, a.getX(i) + Math.sin(T + i)*dt*.3); } a.needsUpdate = true; o.position.set(camera.position.x, 0, camera.position.z); }
+      if (o.userData.rain) { o.position.y = -((T*28) % 34) + 17; o.position.x = camera.position.x; o.position.z = camera.position.z; } }); }
+  if (BIO.hz.ameIm && BIO.hz.ame) BIO.hz.ame.forEach((a, i) => { if (!a.alive && !a.hid) { a.hid = true; BIO.hz.ameIm.setMatrixAt(i*4, new THREE.Matrix4().makeScale(0, 0, 0)); BIO.hz.ameIm.instanceMatrix.needsUpdate = true; } });
+  const lf = BIO_U.uLF.value, sp = BIO.cur === 'volcan' ? BIO_SPOTS.volcan : BIO.cur === 'corrompu' ? BIO_SPOTS.corrompu : BIO.cur === 'glace' ? BIO_SPOTS.glace : [];
+  for (let i = 0; i < 5; i++) { const s = sp[i]; if (s && BIO.cur !== 'glace') lf[i].set(s[0], s[1], s[2], (BIO.hz.frozen && BIO.hz.frozen[i] > T) ? .15 : 1); else lf[i].set(0, 0, 0, 0); }
+  LAVA_U.uT.value = T; SKY_U.uFlash.value = Math.max(0, SKY_U.uFlash.value - dt*2.5); bioLight(); destTick(dt); bioHazards(dt); }
 /* grass sways in the wind (vertex shader tweak, nearly free) */
 TUFTS.material.onBeforeCompile = sh => { sh.uniforms.uT = WIND; sh.vertexShader = 'uniform float uT;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n float sw = position.y * .35; transformed.x += sin(uT*2. + instanceMatrix[3].x*.3) * sw; transformed.z += cos(uT*1.7 + instanceMatrix[3].z*.3) * sw;'); };
 /* cobbles get relief from a bump map */
@@ -2539,7 +2752,7 @@ function boltFx(pts, col, el){ lightning(pts, col, .42, .085, .04); for (let i =
 function explode(p){
   const s = p.sp, x = p.mesh.position.x, y = p.mesh.position.y, z = p.mesh.position.z;
   if (p.bolt) lightning([new THREE.Vector3(x + (Math.random() - .5)*3, 26, z + (Math.random() - .5)*3), new THREE.Vector3(x, Math.max(.1, y), z)], p.col, .3, .1, .05);
-  impactFx(x, y, z, p.el, p.col, !!s.splash);
+  impactFx(x, y, z, p.el, p.col, !!s.splash); bioSpell(p.el, x, z);
   if (s.splash) { ringFx(x, z, s.splash, p.col, .4, p.el, 1); sfx('boom', .5); }
   if (s.splash && isHost) for (const m of [...mons.values()]) { const dd = Math.hypot(m.x-x, m.z-z); if (dd < s.splash + MT[m.type].r && !p.hit.has(m.id)) hurt(m, s.dmg*(p.groundOnly ? 1 : .6), p.fxd, (m.x-x)/(dd||1), (m.z-z)/(dd||1), p.owner); }
   if (s.splash && mode === 'pvp' && p.owner !== me.peer && Math.hypot(me.x-x, me.z-z) < s.splash) takeDamage(s.dmg*.5, p.owner);
@@ -2563,7 +2776,7 @@ const WEAK = {
 const WEAK_SEEN = new Set();
 const weakMul = (type, el) => (WEAK[type] && el && WEAK[type][el]) || 1;
 function hurt(m, dmg, f, px, pz, by){
-  const wm = weakMul(m.type, f && f.el); dmg *= wm; dmg = bossDamage(m, dmg);
+  const wm = weakMul(m.type, f && f.el); dmg *= wm; dmg = bioDmg(m, dmg, f && f.el); dmg = bossDamage(m, dmg);
   if (dmg <= 0) { dmgNum(m.x, (m.gy || 0) + MT[m.type].h + .6, m.z, 0, false, 'res'); if ((by === me.peer || by === 'me') && T - (m.invMsg || -9) > 6) { m.invMsg = T; toast('Corps invulnérable : tranchez les trois têtes !'); } return; }
   if ((by === me.peer || by === 'me') && f && f.el && Math.abs(wm - 1) > .05) { const k = m.type + f.el; if (!WEAK_SEEN.has(k)) { WEAK_SEEN.add(k); toast(MT[m.type].n + (wm > 1 ? ' est faible contre ' : ' résiste à ') + ({fire:'le Feu', ice:'la Glace', storm:'la Foudre', spirit:"l'Esprit", shadow:"l'Ombre"})[f.el] + (wm > 1 ? ' !' : '')); } }
   m.hp -= dmg; m.flash = MT[m.type] && m.g && m.g.userData.noSquash ? .3 : .15; dmgNum(m.x, (m.gy || 0) + MT[m.type].h + .6, m.z, dmg, dmg >= 60, wm > 1.05 ? 'weak' : wm < .95 ? 'res' : ''); if (by === me.peer || by === 'me') hitmark();
@@ -2993,6 +3206,7 @@ function guideHTML(){
   <li>Vous commencez avec un sort au hasard ; chaque <b>parchemin</b> en ajoute un autre au hasard.</li></ul>
   <h4>Survie</h4><ul><li><b>Healing</b> : criez « Healing » (ou touche H) — 30 mana → 22 PV, 8 s de recharge.</li><li>La vie remonte <b>très lentement</b> toute seule après 6 s sans dégâts. Le mana remonte lentement.</li>
   <li>Butin : croix d'émeraude +45 PV · cristaux de saphir +60 mana · parchemin = nouveau sort · rune de feu = dégâts ×1,5 pendant 25 s.</li><li>Les attaques de boss sont <b>annoncées au sol</b> (cercles et cônes rouges ou verts) : sortez-en !</li></ul>
+  <h4>L'arène vivante</h4><ul><li>Après chaque gardien, l'arène se transforme : <b>volcanique</b> (vagues 6 à 10), <b>glaciale</b> (11 à 15), <b>corrompue</b> (16 à 18), <b>tempête</b> (19), <b>temple</b> (20). Chaque biome donne <b>+15 %</b> à son école.</li>${Object.values(BIO_INFO).filter(b => b.tip).map(b => '<li><b>' + b.n + '</b> — ' + b.tip + '</li>').join('')}<li>Ce que les gardiens détruisent (colonnes, arches, balustrade) reste détruit jusqu'à la fin de la partie ; les débris servent de couverts.</li></ul>
   <h4>Boss</h4><ul><li><b>Golem des Ruines</b> — lance des rochers sur un joueur au hasard (cercle rouge), trois à la fois sous 50 % de vie. Onde de choc au corps à corps.</li>
   <li><b>Liche Écarlate</b> — garde 4 serviteurs et ressuscite ceux qu'on abat (rayon vert). Tant que 3 vivent, son bouclier d'âmes réduit ses dégâts de 75 %. Orbes d'âme (cercle vert).</li>
   <li><b>Wyrm aux trois têtes</b> — corps invulnérable. Chaque tête souffle en cône. Tranchez les trois en moins de 25 s après la première, sinon elles repoussent.</li>
@@ -3387,7 +3601,7 @@ const clock = new THREE.Clock(); let T = 0, mmT = 0; const QA = {auto:true, n:0,
 function loop(){
   requestAnimationFrame(loop);
   let dt = Math.min(clock.getDelta(), .05); if (paused || storyFreeze) dt = 0; T += dt; fragTick(dt); duelTick(dt);
-  WIND.value = T; SPU.uT.value = T % 1000; updateAtmosphere(dt); SKY_U.uT.value = T; if (gradePass) { GRADE.uniforms.uT.value = T % 100; GRADE.uniforms.uHurt.value *= Math.pow(.1, dt); } rune.rotation.z += dt*.1; rune.material.opacity = .6 + Math.sin(T*2)*.25;
+  WIND.value = T; SPU.uT.value = T % 1000; updateAtmosphere(dt); bioTick(dt); SKY_U.uT.value = T; if (gradePass) { GRADE.uniforms.uT.value = T % 100; GRADE.uniforms.uHurt.value *= Math.pow(.1, dt); } rune.rotation.z += dt*.1; rune.material.opacity = .6 + Math.sin(T*2)*.25;
   crystal.rotation.y += dt*.8; crystal.position.y = 4.56 + Math.sin(T*1.5)*.25; altarLight.intensity = 1.1 + Math.sin(T*3)*.15 + Math.random()*.08;
   if (Math.random() < .7) { const b = BRAZ[Math.floor(Math.random()*BRAZ.length)]; puff(b.x + (Math.random() - .5)*.5, b.y, b.z + (Math.random() - .5)*.5, Math.random() < .5 ? '#ff9a3a' : '#ffcf5a', 1, .5, b.small ? .25 : .5, .9, 2.4); }
   ALTAR.forEach(A => { A.RING_U.uT.value = T; A.r1.rotation.z = T*.35; A.r2.rotation.z = -T*.6; A.r2.rotation.y = Math.sin(T*.5)*.2; }); SIGIL.forEach(m => m.material.emissiveIntensity = .55 + Math.sin(T*1.7)*.25);
@@ -3410,7 +3624,7 @@ function loop(){
     else {
       const sp = 5.5 /* plus de sprint */, f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0), s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
       const fx_ = -Math.sin(me.yaw), fz = -Math.cos(me.yaw), rx = Math.cos(me.yaw), rz = -Math.sin(me.yaw); let mx = fx_*f + rx*s, mz = fz*f + rz*s; const ml = Math.hypot(mx, mz);
-      { const sx = me.x, sz = me.z, feet = me.y - 1.7; if (ml > 0) { me.x += mx/ml*sp*dt; me.z += mz/ml*sp*dt; } collide(me, .5, AR.rail);
+      { const sx = me.x, sz = me.z, feet = me.y - 1.7; { const bv = bioMove(ml > 0 ? mx/ml*sp : 0, ml > 0 ? mz/ml*sp : 0, dt); me.x += bv[0]*dt; me.z += bv[1]*dt; } collide(me, .5, AR.rail);
         const ok = (x, z) => { const h = walkH(x, z); return h < 50 && h <= feet + .45; };
         if (!ok(me.x, me.z)) { const tx = me.x, tz = me.z; if (ok(tx, sz)) me.z = sz; else if (ok(sx, tz)) me.x = sx; else { me.x = sx; me.z = sz; } }
         const wh = walkH(me.x, me.z), gh = wh < 50 ? wh : feet; me.vy -= 20*dt; let ny = me.y + me.vy*dt;
