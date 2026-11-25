@@ -4109,7 +4109,7 @@ function hostStep(dt){
   if (W.st === 'break') { W.t -= dt; if (W.t <= 0) startWave(); }
   else { W.spT -= dt; const np = Math.max(1, players().length), cap = Math.min(40, Math.round((4 + W.w)*(1 + .6*(np - 1))*(WV.capK || 1))); if (W.q.length && W.spT <= 0 && mons.size < cap) { qSpawn(W.q.shift()); W.spT = Math.max(.9, 1.9 - W.w*.06)/(1 + .4*(np - 1))*(WV.spK || 1); } if (!W.q.length && !mons.size && !WV.pend.length) { W.st = 'break'; W.t = 10; } }
   const P = players();
-  if (mode === 'coop' && playing && !P.length && [...others.values()].length + 1 > 0 && W.w > 0) { W.st = 'over'; W.overT = 9; }
+  if (mode === 'coop' && playing && !P.length && !netWas && [...others.values()].length + 1 > 0 && W.w > 0) { W.st = 'over'; W.overT = 9; }
   for (const m of mons.values()) {
     const t = MT[m.type]; let tg = null, bd = 1e9;
     for (const p of P) { const d = Math.hypot(p.x-m.x, p.z-m.z); if (d < bd) { bd = d; tg = p; } }
@@ -4592,7 +4592,7 @@ function dropNet(){ const pObj = peerObj, hc = hostConn, cs = [...conns.values()
 function netLeave(){ if (!room) return; netWas = {host:isHost, code:hostCode}; dropNet(); sys('Vous êtes déconnecté de la partie en ligne (pause).'); }
 async function netRejoin(quiet){ if (!netWas || !window.Peer) return false; const w = netWas; if (!quiet) $('#pstat').textContent = 'Reconnexion à la partie ' + w.code + '…';
   try { if (w.host) { await hostGame(w.code); showCode(); sys('Partie recréée avec le code ' + hostCode + '.'); } else { await joinGame(w.code); showCode(); sys('Reconnecté à la partie ' + w.code + ' !'); }
-    netWas = null; if (autoReco) { clearInterval(autoReco); autoReco = null; } computeHost(); updPause(); return true; }
+    netWas = null; if (me.dead) respawn(); if (W.st === 'over') W.st = 'break'; if (autoReco) { clearInterval(autoReco); autoReco = null; } computeHost(); updPause(); return true; }
   catch (e) { try { peerObj && peerObj.destroy(); } catch (er) {} peerObj = null; room = null; hostConn = null; isHost = true; hostPeer = me.peer; if (!quiet) { sys('Reconnexion impossible pour l\'instant : réessayez dans quelques secondes.'); updPause(); } return false; } }
 
 /* ---------- networking (PeerJS, navigateur à navigateur) ---------- */
@@ -4661,7 +4661,7 @@ function onClientData(m){
 }
 function leftPeer(id){
   conns.delete(id); roster.delete(id);
-  const o = others.get(id); if (o) { scene.remove(o.g); others.delete(id); sys(o.name + ' a quitté la partie'); }
+  const o = others.get(id); if (o) { scene.remove(o.g); if (o.soul) scene.remove(o.soul); others.delete(id); sys(o.name + ' a quitté la partie'); }
   const cl = calls.get(id); calls.delete(id); if (cl) try { cl.close(); } catch (e) {}
   const a = audios.get(id); audios.delete(id); if (a) { a.srcObject = null; a.remove(); }
 }
@@ -4697,6 +4697,7 @@ function wireHandlers(){
 }
 function syncOthers(dt){
   if (!room) return;
+  { const ids = new Set(room.peers().map(p => p.peer)); for (const [id, o] of others) if (!ids.has(id)) { scene.remove(o.g); if (o.soul) scene.remove(o.soul); others.delete(id); } }
   for (const id of [...others.keys()]) if (!roster.has(id)) leftPeer(id);
   for (const p of room.peers()) {
     if (p.sameTab) { me.peer = p.peer; continue; }
@@ -4705,6 +4706,7 @@ function syncOthers(dt){
     if (!o || o.cls !== pr.c || o.name !== nm) { if (o) scene.remove(o.g); else sys(nm + ' entre dans l\'arène'); o = {cls:pr.c, name:nm, g:wizardMesh(pr.c, nm), tx:pr.x, tz:pr.z}; o.g.position.set(pr.x, groundH(pr.x, pr.z), pr.z); others.set(p.peer, o); }
     o.tx = clamp(pr.x, -60, 60); o.tz = clamp(pr.z, -60, 60); o.ry = fin(pr.ry) ? pr.ry : 0; o.hp = fin(pr.hp) ? clamp(pr.hp, 0, 100) : 100; o.dead = !!pr.dd; o.pk = fin(pr.pk) ? pr.pk : 0; o.dth = fin(pr.de) ? pr.de : 0; o.since = pr.since;
     o.g.position.x += (o.tx - o.g.position.x)*Math.min(1, dt*12); o.g.position.z += (o.tz - o.g.position.z)*Math.min(1, dt*12); o.g.position.y = groundH(o.g.position.x, o.g.position.z); o.g.rotation.y = o.ry; o.g.visible = !o.dead;
+    if (o.dead && !o.soul) { o.soul = new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex, color:0xbfe6ff, transparent:true, opacity:.8, blending:THREE.AdditiveBlending, depthWrite:false})); o.soul.scale.setScalar(1.4); scene.add(o.soul); } if (o.soul) { o.soul.visible = o.dead; o.soul.position.set(o.g.position.x, o.g.position.y + 1.2 + Math.sin(T*2)*.2, o.g.position.z); }
   }
 }
 let presT = 0;
@@ -4860,7 +4862,7 @@ function loop(){
   for (let i = fx.length-1; i >= 0; i--) { const f = fx[i]; if (f.delay !== undefined) { f.delay -= dt; if (f.delay <= 0) { fx.splice(i, 1); f.run(); } continue; } f.t += dt; const k = Math.min(1, f.t/f.dur); f.upd(k); if (k >= 1) { f.end(); fx.splice(i, 1); } }
 
   if (playing) {
-    if (me.dead) { me.rT -= dt; if (me.rT <= 0 && W.st !== 'over') respawn(); }
+    if (me.dead) { me.rT -= dt; if (me.rT <= 0 && (W.st !== 'over' || (room && !isHost && me.rT < -12))) respawn(); }
     else {
       const sp = 5.5 /* plus de sprint */, f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0), s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
       const fx_ = -Math.sin(me.yaw), fz = -Math.cos(me.yaw), rx = Math.cos(me.yaw), rz = -Math.sin(me.yaw); let mx = fx_*f + rx*s, mz = fz*f + rz*s; const ml = Math.hypot(mx, mz);
