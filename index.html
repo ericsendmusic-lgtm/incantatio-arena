@@ -272,7 +272,7 @@ button{cursor:pointer}
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
 <script>
 {
 const $ = s => document.querySelector(s);
@@ -1465,7 +1465,7 @@ addEventListener('keydown', e => { if (!$('#chron').classList.contains('hidden')
   for (const [id, cls] of [['altar', 'hud hidden'], ['chron', 'hud hidden'], ['qpop', '']]) { const d = document.createElement('div'); d.id = id; d.className = cls; document.body.appendChild(d); }
   $('#altar').addEventListener('click', e => { const c = e.target.closest('.card'); if (c) altarPick(+c.dataset.i); });
   const bk = $('#bkname'); if (bk && bk.parentNode) { const b = document.createElement('div'); b.id = 'bkpw'; bk.parentNode.insertBefore(b, bk.nextSibling); } }
-function comTick(dt){ rxTick(dt); progTick(dt); wavesTick(dt); if (playing && !AUTEL.wasPlaying) { BL.clear(); statsReset(); AUTEL.open = false; $('#altar').classList.add('hidden'); } AUTEL.wasPlaying = playing; progTick(dt); wavesTick(dt); v20Tick(dt); if (playing && !AUTEL.wasPlaying) { BL.clear(); statsReset(); AUTEL.open = false; $('#altar').classList.add('hidden'); } AUTEL.wasPlaying = playing;
+function comTick(dt){ rxTick(dt); progTick(dt); wavesTick(dt); if (playing && !AUTEL.wasPlaying) { BL.clear(); statsReset(); AUTEL.open = false; $('#altar').classList.add('hidden'); } AUTEL.wasPlaying = playing; progTick(dt); wavesTick(dt); v20Tick(dt); gpTick(dt); if (playing && !AUTEL.wasPlaying) { BL.clear(); statsReset(); AUTEL.open = false; $('#altar').classList.add('hidden'); } AUTEL.wasPlaying = playing;
   const st = W.st; if (AUTEL.prevSt === 'fight' && st === 'break' && W.w >= 1 && playing) altarOpen();
   if (st === 'fight' && AUTEL.lastW !== W.w) { AUTEL.lastW = W.w; AUTEL.veil = false; }
   if (AUTEL.prevSt !== 'over' && st === 'over' && playing) { chronShow(); AUTEL.open = false; $('#altar').classList.add('hidden'); }
@@ -1600,7 +1600,7 @@ function bossPhase(m, t, tg, P, dt){ wavesBoss(m, t, tg, P, dt); if (m.type !== 
 /* l'hôte applique aussi ses propres messages */
 function bossHitLocal(){ const h = W.hits[W.hits.length - 1]; if (h) progHit(h); }
 const BAN = {el:'', t:0}, STEAL = {id:'', until:0, phrase:''};
-function progHit(h){ wavesHit(h); v20Hit(h); const t = h[0];
+function progHit(h){ wavesHit(h); v20Hit(h); gpHit(h); const t = h[0];
   if (t === 'bword' && typeof h[2] === 'string' && BW.until < now()) bossWord(h[1], h[2], clamp(+h[3] || 6, 2, 10), h[1] === 3 ? 'Des runes s\'allument sur le Golem' : 'Brèche');
   else if (t === 'ban' && ELN[h[1]]) { BAN.el = h[1]; BAN.t = now() + clamp(+h[2] || 10, 2, 15); banner('Mot interdit', 'L\'école ' + ELN[h[1]] + ' est bannie ' + Math.round(BAN.t - now()) + ' s'); }
   else if (t === 'steal' && STEAL.until < now()) { const id = curSpell(); if (!known.includes(id)) return; STEAL.id = id; STEAL.phrase = incOf(id); STEAL.until = now() + clamp(+h[2] || 5, 2, 8); BW.word = STEAL.phrase; BW.until = STEAL.until; BW.boss = 4; banner('La Liche vole « ' + STEAL.phrase + ' »', 'Dites-la avant elle !'); }
@@ -1621,9 +1621,9 @@ function phylMesh(){ const g = new THREE.Group(), body = new THREE.Group(); g.ad
 /* ---- âmes, Résonance, reliques : raccords appelés par le combat ---- */
 function progQuality(id, Q){ if (id === 'basic') return; const el = ELEM(id, clsOf(id)); resoAdd(Q.perfect ? 10 : 6); if (QL.lastEl && QL.lastEl !== el) resoAdd(4); const S = META.stats; S.Incantations = (S.Incantations || 0) + 1; if (Q.perfect) S.Parfaites = (S.Parfaites || 0) + 1; else if (Q.n === 'Nette') S.Nettes = (S.Nettes || 0) + 1; else if (Q.n === 'Presque !') S.Presque = (S.Presque || 0) + 1; mastGain(id, Q.perfect); if (Q.perfect && hasR('masque')) me.mp = Math.min(me.maxMp, me.mp + 4);
   if (QL.secret === id) { QL.secret = null; Q.q *= 1.2; qPop('Phrase secrète !', '#ffd86a'); } }
-function progKill(by, boss, type){ if (by !== me.peer && by !== 'me') return; resoAdd(3); if (hasPact('faim')) heal(1); if (hasPact('horde')) hordeKill(); v20Kill(by); if (hasPact('faim')) heal(1); if (hasPact('horde')) hordeKill(); if (fin(type)) { META.arch.mons[type] = (META.arch.mons[type] || 0) + 1; metaSave(); } }
+function progKill(by, boss, type){ if (by !== me.peer && by !== 'me') return; resoAdd(3); if (hasPact('faim')) heal(1); if (hasPact('horde')) hordeKill(); v20Kill(by); gpKill(); if (hasPact('faim')) heal(1); if (hasPact('horde')) hordeKill(); if (fin(type)) { META.arch.mons[type] = (META.arch.mons[type] || 0) + 1; metaSave(); } }
 function progStill(dt){ const k = me.x + ',' + me.z; if (k === RUN.lastPos) RUN.still = (RUN.still || 0) + dt; else RUN.still = 0; RUN.lastPos = k; }
-function progDefend(d){ if (hasPact('sang')) d *= 1.4; d = specDefend(d); if (hasR('pierre') && RUN.still > 2) d *= .6; if (hasB('epines')) resoAdd(d*.4); if (me.hp - d <= 0 && hasR('phenix') && !RUN.phx) { RUN.phx = 1; d = Math.max(0, me.hp - 1); setTimeout(() => { me.hp = 60; banner('Plume du Phénix', 'Vous renaissez de vos cendres'); flash(me.x, me.y, me.z, '#ff9a3a', 9, .8); puff(me.x, me.y - 1, me.z, '#ffb84a', 40, 6, 1.2, 1, 3); }, 50); } return d; }
+function progDefend(d){ if (hasPact('sang')) d *= 1.4; d = specDefend(d); d = gpDefend(d); if (hasR('pierre') && RUN.still > 2) d *= .6; if (hasB('epines')) resoAdd(d*.4); if (me.hp - d <= 0 && hasR('phenix') && !RUN.phx) { RUN.phx = 1; d = Math.max(0, me.hp - 1); setTimeout(() => { me.hp = 60; banner('Plume du Phénix', 'Vous renaissez de vos cendres'); flash(me.x, me.y, me.z, '#ff9a3a', 9, .8); puff(me.x, me.y - 1, me.z, '#ffb84a', 40, 6, 1.2, 1, 3); }, 50); } return d; }
 function progTick(dt){ const st = W.st;
   if ((playing && !RUN.was) || (RUN.prevSt === 'over' && st !== 'over')) { Object.assign(RUN, {souls:0, phx:0, relics:[], rank:{}, tomeQ:0, orient:null, pacts:[], pactW:[], seal:null, hk:0, chaosK:null, specs:[], specAsked:0, spec2:0, spx:0, grand:[], ctrWon:0}); RESO.v = 0; RESO.awT = 0; RESO.ready = false; BAN.t = 0; BW.word = ''; STEAL.id = ''; CHOICE.q.length = 0; for (const id of known) if (id !== 'basic') archAdd('spells', id);
     if (META.rooms.forge1 && META.arch.relics.length) relicOffer('Forge des reliques : relique de départ', RELICS.filter(r => META.arch.relics.includes(r.id)), 3);
@@ -1865,7 +1865,7 @@ function wavesTarget(m, t, tg, bd, P){ const F = m.F; m.tgPeer = tg && tg.peer;
   if (F && F.has('hunter') && P.length > 1) { let lo = null, lh = 1e9; for (const p of P) { const hp = p.peer === me.peer || p.peer === 'me' ? me.hp : ((others.get(p.peer) || {}).hp ?? 100); if (hp < lh) { lh = hp; lo = p; } } if (lo) return {tg:lo, bd:Math.hypot(lo.x - m.x, lo.z - m.z)}; }
   if (F && F.has('hungry')) { const c = nearCorpse(m.x, m.z, 12); if (c) return {tg:{peer:'#corpse', x:c.x, z:c.z}, bd:Math.hypot(c.x - m.x, c.z - m.z)}; }
   if (WV.siege && WV.cry > 0 && !t.prop && !t.boss && (!tg || bd > 6)) { const r = Math.hypot(m.x, m.z) || 1, x = m.x/r*3.4, z = m.z/r*3.4; return {tg:{peer:'cristal', x, z}, bd:Math.hypot(x - m.x, z - m.z)}; }
-  return null; }
+  return gpTarget(m, t, tg, bd); }
 function wavesBite(m){ if (m.F && m.F.has('spectre')) reveal(m, 1); }
 function reveal(m, s){ W.hits.push(['rev', m.id, s]); WV.rev[m.id] = T + s; }
 function fleeMove(m, tg, sp, dt, t){ let ux = m.x - tg.x, uz = m.z - tg.z; const d = Math.hypot(ux, uz) || 1; ux /= d; uz /= d; const r = Math.hypot(m.x, m.z);
@@ -2072,7 +2072,7 @@ function wavesQuality(id, Q){ if (hasPact('murmure') && !Q.perfect) Q.q *= .6; }
 /* ---- résurrection incantée : « Rise » près de l'âme d'un allié ---- */
 function riseTarget(){ if (me.dead || !room) return null; for (const [p, o] of others) if (o.dead && Math.hypot(o.g.position.x - me.x, o.g.position.z - me.z) < 3.5) return p; return null; }
 const riseNear = () => !!riseTarget();
-const GAME_VER = 'v2.3 · 25/11 13:45';
+const GAME_VER = 'v2.4 · 25/11 gameplay';
 { const v = document.createElement('div'); v.id = 'gamever'; v.textContent = 'Incantatio Arena ' + GAME_VER; v.style.cssText = 'position:fixed;right:8px;bottom:4px;font:12px Georgia,serif;color:#f3e6c8;opacity:.55;z-index:70;pointer-events:none'; document.body.appendChild(v); }
 function riseStart(){ const p = riseTarget(); if (!p) return false; WV.rise = {peer:p, t:3}; toast('Résurrection : restez près de son âme 3 s'); return true; }
 function riseVoice(n){ if (!/\b(rise|rice|rize|raise|rais)\b/.test(n)) return false; return riseStart(); }
@@ -2172,7 +2172,7 @@ function specCast(id, data, el){ if (!RUN.specs || !RUN.specs.length) return; co
   if (hasSpec('tempete') && el === 'storm') { const sp = spellOf(id); if (sp) setTimeout(() => { cds[id] = Math.min(cds[id] || 0, now() + sp.cd*.7); }, 0); } }
 function specMods(data, sp){ const s = typeof data.spec === 'string' ? data.spec.split(',') : null; if (!s) return sp; const o = Object.assign({}, sp);
   if (s.includes('pyro') && o.splash) o.splash *= 1.5; if (s.includes('pyro') && o.k === 'nova') o.r *= 1.2; if (s.includes('flammes') && o.dot) o.dot *= 2; if (s.includes('hiver') && o.slow) o.slow *= 2; if (s.includes('lame') && o.k === 'bolt') o.pierce = 1; return o; }
-function specHurt(m, dmg, f){ const s = f.spec; if (!s) return dmg; if (s.includes('cryo') && m.slowT > 0) dmg *= 1.6; if (s.includes('oracle') && f._wm > 1.05) dmg *= 1 + (f._wm - 1); if (s.includes('oracle') && f.el === 'spirit') m.vulnT = T + 4;
+function specHurt(m, dmg, f){ if (f.hi && groundH(m.x, m.z) < f.hi - .9) dmg *= 1.15; const s = f.spec; if (!s) return dmg; if (s.includes('cryo') && m.slowT > 0) dmg *= 1.6; if (s.includes('oracle') && f._wm > 1.05) dmg *= 1 + (f._wm - 1); if (s.includes('oracle') && f.el === 'spirit') m.vulnT = T + 4;
   if (s.includes('assassin') && f.by && m.tgPeer && m.tgPeer !== f.by) dmg *= 1.6; if (s.includes('hiver') && f.el === 'ice') for (const o of rxNear(m.x, m.z, 3)) o.slowT = Math.max(o.slowT || 0, 2);
   if (s.includes('necro') && f.el === 'shadow') m.necroBy = f.by; return dmg; }
 function specDefend(d){ if (hasSpec('iceberg')) d *= .75; if (hasSpec('avatar') && d > 0 && Math.random() < .2) { qPop('Esquive !', '#ffe259'); me.mp = Math.min(me.maxMp, me.mp + 5); return 0; } if (hasSpec('phenix') && me.hp - d <= 0 && !RUN.spx) { RUN.spx = 1; d = Math.max(0, me.hp - 1); setTimeout(() => { me.hp = 70; banner('Héritier du Phénix', 'Vous renaissez dans les flammes'); puff(me.x, me.y - 1, me.z, '#ff8a3a', 50, 6, 1.2, 1, 3); }, 50); } return d; }
@@ -2363,7 +2363,7 @@ function v20Hit(h){ const t = h[0];
 function v20Death(m){ ashDeath(m); if (m.necroBy && !MT[m.type].boss && !MT[m.type].prop && mons.size < 38) { const n = qSpawn({t:m.type, x:m.x, z:m.z, hp:.5}); if (n) { n.charmT = T + 12; n.risen = 1; W.hits.push(['risen', r2(m.x), r2(m.z)]); risenFx(m.x, m.z); } }
   if (MT[m.type].boss) { if (m.type === 3) { contractAdd('golem', 1); W.hits.push(['ctr', 'golem']); } if (CTR.bossEls && CTR.bossEls.size <= 1) contractAdd('mono', 1); CTR.bossEls = null; } }
 function v20Kill(by){ contractAdd('kills', 1); }
-function v20Cast(id, data, el){ specCast(id, data, el); if (W.st === 'fight' && [...mons.values()].some(m => MT[m.type].boss)) { CTR.bossEls = CTR.bossEls || new Set(); CTR.bossEls.add(el); } }
+function v20Cast(id, data, el){ specCast(id, data, el); gpCast(id, data, el); if (W.st === 'fight' && [...mons.values()].some(m => MT[m.type].boss)) { CTR.bossEls = CTR.bossEls || new Set(); CTR.bossEls.add(el); } }
 function v20Tick(dt){ specTick(dt); grandTick(); runesTick(); auraTick(dt);   if (W.won && !RUN.ctrWon) { RUN.ctrWon = 1; if ((RUN.pacts || []).length >= 3) contractAdd('pactes', 1); }
   if (playing) contractAdd('vague', W.w, true);
   if (playing && W.st === 'break' && W.w >= (META.rooms.chap ? 5 : 10) && !RUN.specAsked) { RUN.specAsked = 1; specOffer(ELEM(me.cls + ':0', me.cls)); }
@@ -2408,6 +2408,99 @@ function ctrHTML(){ return '<h4 style="margin:10px 0 2px;color:#ffe8b8">Contrats
 function secHTML(){ return '<h4>Incantations secrètes (' + META.secrets.length + '/5)</h4><div class="tags">' + Object.entries(SECRETS).map(([k, S]) => META.secrets.includes(k) ? '<span class="on" title="' + esc(S.d) + '">« ' + esc(S.p) + ' »</span>' : '<span title="' + esc(S.how) + '">? ? ? · ' + esc(S.how) + '</span>').join('') + '</div>'
   + '<h4>Voies</h4><div class="tags">' + Object.entries(SPECS).map(([k, S]) => '<span class="' + (META.arch.specs.includes(k) ? 'on' : '') + '">' + (META.arch.specs.includes(k) ? esc(S.n) : '? ? ?') + '</span>').join('') + '</div>'
   + '<h4>Rituels</h4><div class="tags">' + Object.entries(RIT_N).map(([k, n]) => '<span class="' + (META.arch.rituals.includes(k) ? 'on' : '') + '">' + (META.arch.rituals.includes(k) ? esc(n) : '? ? ?') + '</span>').join('') + '</div>'; }
+/* ===================== GAMEPLAY 2.4 : esquive, menaces, impacts, difficulté, combos de mouvement, comportements, hauteur, archétypes, événements, didacticiel, écran de mort ===================== */
+const DIFFS = [{n:'Facile', hp:.75, dmg:.7}, {n:'Normal', hp:1, dmg:1}, {n:'Difficile', hp:1.3, dmg:1.25}];
+const ARCHS = {
+  sorcier:{n:'Sorcier', d:'Équilibré, sans bonus ni malus'},
+  guerre:{n:'Mage de guerre', d:'+15 % de dégâts, mana max −20'},
+  sage:{n:'Sage', d:'Mana max +30, régénération de mana +40 %'},
+  necro:{n:'Nécromant', d:'Chaque élimination rend 3 PV'},
+  chrono:{n:'Chronomancien', d:'Recharges des sorts −15 %'},
+  gardien:{n:'Gardien', d:'−15 % de dégâts subis'} };
+const GP = {diff:1, arch:'sorcier', dodgeCd:0, dash:null, iframe:0, cause:'', causeT:0, slowT:-99, started:false, evW:-1, tuto:0, tutoT:0, chev:[]};
+try { const v = localStorage.getItem('incantatio-diff'); if (v !== null && DIFFS[+v]) GP.diff = +v; const a = localStorage.getItem('incantatio-arch'); if (ARCHS[a]) GP.arch = a; } catch (e) {}
+const ddiff = () => DIFFS[GP.diff] || DIFFS[1];
+
+/* ---- esquive (Shift) ---- */
+function dodge(){ if (!playing || me.dead || (paused && !room) || T < GP.dodgeCd || storyFreeze) return; let f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0), s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0); if (!f && !s) f = -1;
+  const fx_ = -Math.sin(me.yaw), fz = -Math.cos(me.yaw), rx = Math.cos(me.yaw), rz = -Math.sin(me.yaw); let dx = fx_*f + rx*s, dz = fz*f + rz*s; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+  GP.dash = {dx, dz, t:.26}; GP.iframe = T + .45; GP.dodgeCd = T + 3; puff(me.x, me.y - 1.3, me.z, '#cfe6ff', 12, 3, .7, .5, .5); if (GP.tuto === 2) GP.tutoOk = 1; }
+function dashTick(dt){ const D = GP.dash; if (!D) return; D.t -= dt; const step = 24*dt, feet = me.y - 1.7, ok = (x, z) => { const h = walkH(x, z); return h < 50 && h <= feet + .5; };
+  const nx = me.x + D.dx*step, nz = me.z + D.dz*step; if (ok(nx, nz)) { me.x = nx; me.z = nz; } else D.t = 0; if (D.t <= 0) GP.dash = null; }
+
+/* ---- menaces hors champ, vie basse ---- */
+function threatTick(){ const box = $('#threat'); if (!box) return; if (!playing || me.dead) { box.style.display = 'none'; return; } box.style.display = 'block';
+  const fx_ = -Math.sin(me.yaw), fz = -Math.cos(me.yaw), rx = Math.cos(me.yaw), rz = -Math.sin(me.yaw), list = [];
+  for (const m of mons.values()) { if (MT[m.type].prop) continue; const dx = m.x - me.x, dz = m.z - me.z, d = Math.hypot(dx, dz); if (d > 10) continue; const a = Math.atan2(dx*rx + dz*rz, dx*fx_ + dz*fz); if (Math.abs(a) < .8) continue; list.push({a, d, hot:m.a > 0}); }
+  list.sort((p, q) => p.d - q.d); while (GP.chev.length < 8) { const c = document.createElement('i'); box.appendChild(c); GP.chev.push(c); }
+  GP.chev.forEach((c, i) => { const t = list[i]; if (!t) { c.style.display = 'none'; return; } c.style.display = 'block'; c.style.left = (50 + Math.sin(t.a)*44) + '%'; c.style.top = (50 - Math.cos(t.a)*40) + '%'; c.style.transform = 'translate(-50%,-50%) rotate(' + t.a + 'rad)'; c.style.opacity = (t.hot ? 1 : .35 + .55*(1 - t.d/10)).toFixed(2); c.classList.toggle('hot', t.hot); });
+  if (me.hp < 25 && !room && T - GP.slowT > 20) { GP.slowT = T; TIMEK.slow = 1.2; toast('Vie basse ! Healing (H), esquive (Shift)'); } }
+
+/* ---- impacts plus marqués ---- */
+function impactPop(m, f, by){ const col = f && f.el && ELC[f.el] ? ELC[f.el] : '#fff2c0'; puff(m.x, (m.gy || 0) + MT[m.type].h*.6, m.z, col, 7, 5, .45, .3, 1); if (by === me.peer || by === 'me') shake = Math.max(shake, .06);
+  if (!MT[m.type].boss && !MT[m.type].prop && !MT[m.type].head && f && !f.rx) { const p = peerPos(by); if (p) { const dx = m.x - p.x, dz = m.z - p.z, d = Math.hypot(dx, dz) || 1; moveMon(m, dx/d*.3, dz/d*.3, MT[m.type]); } } }
+
+/* ---- lanceur : archétype, combos de mouvement, hauteur ---- */
+function gpCast(id, data, el){ const sp = spellOf(id); let k = 1; if (GP.arch === 'guerre') k *= 1.15; if (k !== 1) data.bm = r2((data.bm || 1)*k);
+  if (GP.arch === 'chrono' && sp) setTimeout(() => { cds[id] = Math.min(cds[id] || 0, now() + sp.cd*.85); }, 0);
+  if (sp && sp.k === 'nova' && me.onG === false) { data.air = 1; qPop('Frappe aérienne !', '#ffe8b0'); }
+  if (sp && sp.k === 'wave' && (keys.KeyW || keys.ArrowUp)) { data.run = 1; qPop('Élan !', '#ffe8b0'); }
+  const gh = groundH(me.x, me.z); if (gh >= 1.1) data.hi = r2(gh); }
+function gpMods(data, sp){ if (data.air !== 1 && data.run !== 1) return sp; const o = Object.assign({}, sp); if (data.air === 1 && o.k === 'nova') { o.dmg *= 1.25; o.r *= 1.25; o.slow = Math.max(o.slow || 0, 1); } if (data.run === 1 && o.k === 'wave') { o.push = (o.push || 3)*1.6; o.len *= 1.15; } return o; }
+function gpDefend(d){ d *= ddiff().dmg; if (GP.arch === 'gardien') d *= .85; if (T < GP.iframe && d > 0) { qPop('Esquive !', '#cfe6ff'); return 0; } return d; }
+function gpKill(){ if (GP.arch === 'necro') heal(3); }
+const losBlocked = (x1, z1, x2, z2) => { const dx = x2 - x1, dz = z2 - z1, L = Math.hypot(dx, dz) || 1; for (const o of OBS) { if (o.r < .4 || o.r > 1.4) continue; const t = ((o.x - x1)*dx + (o.z - z1)*dz)/(L*L); if (t < .08 || t > .92) continue; const px = x1 + dx*t, pz = z1 + dz*t; if (Math.hypot(o.x - px, o.z - pz) < o.r + .15) return true; } return false; };
+
+/* ---- comportements (hôte) : goules qui encerclent, ogres qui chargent ---- */
+function gpTarget(m, t, tg, bd){ if (!tg || tg.peer[0] === '#' || tg.peer === 'cristal') return null; if (m.type === 1 && bd > 4.5 && bd < 22 && !(m.F && m.F.size)) { const a = Math.atan2(m.x - tg.x, m.z - tg.z) + ((m.id % 3) - 1)*.9, x = tg.x + Math.sin(a)*2.6, z = tg.z + Math.cos(a)*2.6; return {tg:{peer:tg.peer, x, z}, bd:Math.hypot(x - m.x, z - m.z) + 3}; } return null; }
+function gpHost(dt){ if (!isHost || W.st !== 'fight' || storyFreeze || (paused && !room)) return; const P = players();
+  for (const m of mons.values()) { if (m.type !== 2 || (m.F && (m.F.has('illu') || m.F.has('colossus') || m.F.has('shield')))) continue; const C = m.chg;
+    if (C) { if (C.w > 0) { C.w -= dt; m.stunT = T + .05; if (C.w <= 0) m.stunT = 0; continue; } C.run -= dt; const k = 19*dt; moveMon(m, Math.sin(C.ang)*k, Math.cos(C.ang)*k, MT[2]); m.stunT = T + .05;
+      for (const p of P) if (!C.hit.includes(p.peer) && Math.hypot(p.x - m.x, p.z - m.z) < 2) { C.hit.push(p.peer); hitPlayer(p.peer, 18); } if (C.run <= 0) { m.chg = null; m.stunT = 0; } continue; }
+    m.chT = (m.chT ?? 6 + Math.random()*4) - dt; if (m.chT > 0 || m.stunT > T || m.charmT > T) continue; let tg = null, bd = 1e9; for (const p of P) { const d = Math.hypot(p.x - m.x, p.z - m.z); if (d < bd) { bd = d; tg = p; } }
+    if (!tg || bd < 6 || bd > 18) { m.chT = 1; continue; } m.chT = 9 + Math.random()*3; const ang = Math.atan2(tg.x - m.x, tg.z - m.z); m.chg = {w:1, run:.65, ang, hit:[]}; W.hits.push(['chg', m.id, +ang.toFixed(3)]); chargeFx(m.x, m.z, ang); }
+  /* événements rares */
+  if (GP.evW !== W.w) { GP.evW = W.w; if (W.w >= 4 && W.w % 5 && Math.random() < .12) { const e = pick(['eclipse', 'mana', 'or']); W.hits.push(['evt', e]); evtRecv(e);
+      if (e === 'mana') for (let i = 0; i < 6; i++) { const a = Math.random()*6.28, r = 6 + Math.random()*14; addDrop('mp', Math.cos(a)*r, Math.sin(a)*r); }
+      if (e === 'or') for (let i = 0; i < 3; i++) { const g = spawnPos(0); qSpawn({t:0, x:g[0], z:g[1], hp:3, spd:1.4, f:'gold'}); } } } }
+function chargeFx(x, z, ang){ const segs = [], wm = new THREE.MeshBasicMaterial({color:0xff3a2a, transparent:true, opacity:.6, depthWrite:false, blending:THREE.AdditiveBlending, fog:false}); for (let d = 1.5; d < 13; d += 1.6) { const px = x + Math.sin(ang)*d, pz = z + Math.cos(ang)*d, s = new THREE.Mesh(geo('chgSeg', () => new THREE.PlaneGeometry(1.8, 1.3).rotateX(-Math.PI/2)), wm); s.position.set(px, groundH(px, pz) + .12, pz); s.rotation.y = ang; scene.add(s); segs.push(s); }
+  fx.push({t:0, dur:1.6, upd:k => { wm.opacity = k < .62 ? .3 + .4*Math.abs(Math.sin(k*30)) : Math.max(0, .7 - (k - .62)*2); }, end:() => { segs.forEach(s => scene.remove(s)); wm.dispose(); }}); }
+let evtT = 0;
+function evtRecv(e){ if (e === 'eclipse') { if (!WV.mods.includes('nuit')) { WV.mods.push('nuit'); setTimeout(() => { const i = WV.mods.indexOf('nuit'); if (i >= 0 && !(WV.plan && WV.plan.mods.includes('nuit'))) WV.mods.splice(i, 1); }, 14000); } banner('Éclipse !', 'L\'arène plonge dans le noir quelques instants'); }
+  else if (e === 'mana') banner('Pluie de mana', 'Des cristaux de mana tombent dans l\'arène'); else if (e === 'or') banner('Horde dorée !', 'Trois monstres dorés : attrapez-les !'); }
+function gpHit(h){ if (h[0] === 'chg') { const m = mons.get(h[1]); if (m && fin(h[2])) chargeFx(m.x, m.z, h[2]); } else if (h[0] === 'evt' && typeof h[1] === 'string') evtRecv(h[1]); }
+
+/* ---- écran de mort : la cause et un conseil ---- */
+function gpHurtTrack(d, by){ if (d <= 0) return; let cause = '', k = ''; if (by && others.get(by)) { cause = others.get(by).name; k = 'pvp'; }
+  else { let best = null, bd = 7; for (const m of mons.values()) { const dd = Math.hypot(m.x - me.x, m.z - me.z); if (dd < bd + (MT[m.type].ranged ? 20 : 0) && (m.a > 0 || dd < 3)) { bd = dd; best = m; } } if (!best) for (const m of mons.values()) if (MT[m.type].boss) best = m;
+    if (best) { cause = MT[best.type].n; k = best.type; } else { cause = 'les dangers de l\'arène'; k = 'bio'; } } GP.cause = cause; GP.causeK = k; GP.causeT = T; }
+function deathTip(){ const k = GP.causeK; if (k === 7 || k === 10) return 'esquivez avec Shift et prenez de la hauteur sur les escaliers'; if (k === 6) return 'abritez-vous derrière une colonne : elle arrête les flèches'; if (k === 2) return 'quand une ligne rouge apparaît devant un ogre, esquivez sur le côté';
+  if (k === 0) return 'les diablotins sont fragiles au Froid : une nova de Glace les arrête'; if (k === 1) return 'les goules vous encerclent : reculez pour les garder devant vous'; if (k === 'bio') return (BIO_INFO[BIO.cur] || {}).tip || 'sortez des cercles qui s\'illuminent';
+  if (k !== '' && MT[k] && MT[k].boss) return 'les attaques des boss sont annoncées au sol : sortez des cercles et des lignes'; return 'Healing (H) rend 22 PV pour 30 mana'; }
+
+/* ---- didacticiel de première partie ---- */
+const TUTO = ['Dites la phrase du sort affichée en grand dans le grimoire, ou appuyez sur Entrée pour l\'écrire.', 'Un monstre touché porte une marque de couleur ; un sort d\'une autre école sur cette cible déclenche une réaction. Les parchemins apprennent d\'autres écoles.', 'Esquivez avec Shift : une roulade rapide qui vous rend intouchable un instant.', 'À la fin d\'une vague, choisissez une bénédiction à l\'autel (1, 2, 3, clic ou à la voix).', 'K : arbre des compétences · G : guide complet · Échap : pause. Bonne chance, sorcier !'];
+function tutoTick(dt){ const el = $('#tuto'); if (!el) return; if (META.tuto || !playing) { el.style.display = 'none'; return; } const s = GP.tuto; GP.tutoT += dt;
+  const ok = s === 0 ? STATS.casts > 0 : s === 1 ? GP.tutoT > 12 || STATS.rx > 0 : s === 2 ? GP.tutoOk : s === 3 ? BL.size > 0 : GP.tutoT > 9;
+  if (ok) { GP.tuto++; GP.tutoT = 0; GP.tutoOk = 0; sfxChime(); if (GP.tuto >= TUTO.length) { META.tuto = 1; metaSave(1); el.style.display = 'none'; return; } }
+  el.style.display = 'block'; const h = '<b>Didacticiel ' + (GP.tuto + 1) + '/' + TUTO.length + '</b> ' + esc(TUTO[GP.tuto]) + '<small>P : passer le didacticiel</small>'; if (el.innerHTML !== h) el.innerHTML = h; }
+
+/* ---- tick ---- */
+function gpTick(dt){ dashTick(dt); threatTick(); tutoTick(dt); gpHost(dt);
+  if (playing && !GP.started) { GP.started = true; if (GP.arch === 'sage') me.maxMp = 130; else if (GP.arch === 'guerre') me.maxMp = 80; else me.maxMp = 100; me.mp = Math.min(me.mp, me.maxMp); }
+  if (playing && GP.arch === 'sage' && !me.dead) me.mp = Math.min(me.maxMp, me.mp + .6*dt);
+  const dg = $('#dodgeui'); if (dg) { dg.style.display = playing ? 'block' : 'none'; const r = Math.max(0, GP.dodgeCd - T); dg.textContent = r > 0 ? 'Esquive ' + r.toFixed(1) + ' s' : 'Esquive prête (Shift)'; dg.classList.toggle('ready', r <= 0); } }
+
+/* ---- interface ---- */
+{ const st = document.createElement('style'); st.textContent = `#threat{position:fixed;inset:0;pointer-events:none;z-index:8} #threat i{position:absolute;width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-bottom:24px solid #ff5a3a;filter:drop-shadow(0 0 6px #ff3a1a);display:none} #threat i.hot{border-bottom-color:#ff1a1a;filter:drop-shadow(0 0 10px #ff0000)}
+#dodgeui{position:fixed;left:356px;bottom:2px;font:12px Georgia,serif;color:#cfe6ff;opacity:.55;z-index:12;pointer-events:none;display:none} #dodgeui.ready{opacity:.9;color:#e8f6ff}
+#tuto{position:fixed;left:50%;top:92px;transform:translateX(-50%);max-width:560px;padding:8px 14px;border-radius:10px;background:#120e0ae8;border:1px solid #c9a24a;color:#f3e6c8;font:15px Georgia,serif;line-height:1.4;z-index:31;pointer-events:none;text-align:center;display:none} #tuto b{color:#ffd86a;display:block} #tuto small{display:block;opacity:.6;font-size:12px;margin-top:3px}
+.gpsel{display:inline-grid;gap:2px}`; document.head.appendChild(st);
+  for (const id of ['threat', 'dodgeui', 'tuto']) { const d = document.createElement('div'); d.id = id; document.body.appendChild(d); }
+  addEventListener('keydown', e => { if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !chatOpen && !e.repeat) dodge(); if (e.code === 'KeyP' && !chatOpen && !META.tuto && playing) { META.tuto = 1; metaSave(1); toast('Didacticiel passé'); } });
+  const row = $('#gfx') && $('#gfx').closest('.row'); if (row) { const mk = (lab, id, opts, val, key) => { const l = document.createElement('label'); l.className = 'field'; l.innerHTML = lab + '<select id="' + id + '">' + opts.map(([v, t]) => '<option value="' + v + '"' + (String(v) === String(val) ? ' selected' : '') + '>' + t + '</option>').join('') + '</select>'; row.appendChild(l); l.querySelector('select').onchange = e => { try { localStorage.setItem(key, e.target.value); } catch (er) {} if (id === 'gpdiff') GP.diff = +e.target.value; else { GP.arch = e.target.value; toast(ARCHS[GP.arch].n + ' : ' + ARCHS[GP.arch].d); } }; };
+    mk('Difficulté', 'gpdiff', DIFFS.map((d, i) => [i, d.n + (i === 0 ? ' (monstres −25 % de vie, −30 % de dégâts)' : i === 2 ? ' (+30 % de vie, +25 % de dégâts)' : '')]), GP.diff, 'incantatio-diff');
+    mk('Archétype', 'gparch', Object.entries(ARCHS).map(([k, A]) => [k, A.n + ' : ' + A.d]), GP.arch, 'incantatio-arch'); } }
 /* ===================== ARÈNE VIVANTE : biomes, transformations, dangers, destruction ===================== */
 /* Le biome se déduit de la vague (identique chez tous les joueurs, sans message réseau) ; la transformation dure 12 s pendant la pause entre deux vagues.
    Les dangers d'arène visent le joueur local (chacun voit les siens) ; les effets des sorts sur l'arène sont décidés par l'hôte. */
@@ -3427,7 +3520,7 @@ const aiModel = () => $('#eng').value === 'whisper' ? 'whisper' : $('#eng').valu
 let asrModel = '', asrW = null, asrReady = false, asrErr = '', asrPct = 0, asrDev = '', asrBusy = false, asrNext = null, asrId = 0, testing = false;
 const asrFiles = {};
 const WORKER = `
-import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3';
+import { pipeline, env } from 'data:text/javascript,';
 env.allowLocalModels = false;
 let asr = null, isW = false;
 self.onmessage = async e => {
@@ -3995,11 +4088,11 @@ function applyCast(data, caster, mine){
   if (!data || typeof data !== 'object') return;
   if (data.sec) { secretApply(data, caster, mine); return; } if (data.gi) { grandApply(data, caster, mine); return; }
   if (data.gich) { if (!mine && GRAND[data.gich]) grandAura(caster, data.gich, clamp(+data.st || 1, 1, 4), data.f === 1); return; } if (data.sec) { secretApply(data, caster, mine); return; } if (data.gi) { grandApply(data, caster, mine); return; }
-  let sp = spellOf(data.s); if (!sp) return; if (data.pw === 1) sp = Object.assign({}, sp, {dmg:sp.dmg*1.5}); if (fin(data.q) || fin(data.bm)) sp = Object.assign({}, sp, {dmg:sp.dmg*clamp(fin(data.q) ? data.q : 1, .5, 1.3)*clamp(fin(data.bm) ? data.bm : 1, .5, 4)}); sp = castMods(data, sp); if (fin(data.q) || fin(data.bm)) sp = Object.assign({}, sp, {dmg:sp.dmg*clamp(fin(data.q) ? data.q : 1, .5, 1.3)*clamp(fin(data.bm) ? data.bm : 1, .5, 4)}); sp = specMods(data, castMods(data, sp));
+  let sp = spellOf(data.s); if (!sp) return; if (data.pw === 1) sp = Object.assign({}, sp, {dmg:sp.dmg*1.5}); if (fin(data.q) || fin(data.bm)) sp = Object.assign({}, sp, {dmg:sp.dmg*clamp(fin(data.q) ? data.q : 1, .5, 1.3)*clamp(fin(data.bm) ? data.bm : 1, .5, 4)}); sp = specMods(data, castMods(data, sp)); if (fin(data.q) || fin(data.bm)) sp = Object.assign({}, sp, {dmg:sp.dmg*clamp(fin(data.q) ? data.q : 1, .5, 1.3)*clamp(fin(data.bm) ? data.bm : 1, .5, 4)}); sp = gpMods(data, specMods(data, castMods(data, sp)));
   const o = data.o, d = data.d; if (!Array.isArray(o) || !Array.isArray(d) || ![...o, ...d].every(fin)) return;
   const cls = clsOf(data.s) || (others.get(caster) || {}).cls || me.cls, col = data.gold === 1 ? '#ffe08a' : data.s === 'basic' ? '#f3ead2' : CL[cls] ? CL[cls].col : '#fff';
   const ov = new THREE.Vector3(o[0], o[1], o[2]), dv = new THREE.Vector3(d[0], d[1], d[2]).normalize(), el = ELEM(data.s, cls);
-  const fxd = {slow:sp.slow, dot:sp.dot, push:sp.push, el, cat:data.cat === 1, tg:data.tg === 1, dm:typeof data.dm === 'string' ? data.dm : null, basic:data.s === 'basic', sn:sp.n, cg:data.cg === 1, ph:data.ph === 1, bs:Array.isArray(data.bs) ? data.bs.filter(fin).slice(0, 30) : null, bw:fin(data.bw) ? data.bw : null, ch:typeof data.ch === 'string' ? data.ch : null, rain:sp.k === 'rain', spec:typeof data.spec === 'string' ? data.spec.slice(0, 60) : null};
+  const fxd = {slow:sp.slow, dot:sp.dot, push:sp.push, el, cat:data.cat === 1, tg:data.tg === 1, dm:typeof data.dm === 'string' ? data.dm : null, basic:data.s === 'basic', sn:sp.n, cg:data.cg === 1, ph:data.ph === 1, bs:Array.isArray(data.bs) ? data.bs.filter(fin).slice(0, 30) : null, bw:fin(data.bw) ? data.bw : null, ch:typeof data.ch === 'string' ? data.ch : null, rain:sp.k === 'rain', spec:typeof data.spec === 'string' ? data.spec.slice(0, 60) : null, hi:fin(data.hi) ? data.hi : 0};
   if (typeof data.br === 'string' && ELN[data.br]) dentBreath(ov, dv, data.br, caster); if (!mine && data.aw === 1) concord(); if (sp.k === 'nova' && data.rk >= 3) fx.push({delay:.6, run:() => applyCast(Object.assign({}, data, {rk:2, q:.6, br:null, vx:0, aw:0}), caster, mine)});
   ritualCast(data, caster, el, ov, dv); specCastFx(data, el, ov, dv, caster);
   if (isHost && data.s !== 'basic') WV.sch[el] = (WV.sch[el] || 0) + 1; if (sp.k === 'nova') wavesSpell(el, ov.x, ov.z, sp.r || 6);
@@ -4095,7 +4188,7 @@ function hurt(m, dmg, f, px, pz, by){
   const wm = wavesWeak(m, weakMul(m.type, f && f.el), f && f.el); if (f) f._wm = wm; dmg *= wm; dmg = bioDmg(m, dmg, f && f.el); dmg = rxHurt(m, dmg, f, by); dmg = bossDamage(m, dmg);
   if (dmg <= 0) { dmgNum(m.x, (m.gy || 0) + MT[m.type].h + .6, m.z, 0, false, 'res'); if (m.type === 5 && (by === me.peer || by === 'me') && T - (m.invMsg || -9) > 6) { m.invMsg = T; toast('Corps invulnérable : tranchez les trois têtes !'); } return; }
   if ((by === me.peer || by === 'me') && f && f.el && Math.abs(wm - 1) > .05) { const k = m.type + f.el; if (!WEAK_SEEN.has(k)) { WEAK_SEEN.add(k); toast(MT[m.type].n + (wm > 1 ? ' est faible contre ' : ' résiste à ') + ({fire:'le Feu', ice:'la Glace', storm:'la Foudre', spirit:"l'Esprit", shadow:"l'Ombre"})[f.el] + (wm > 1 ? ' !' : '')); } }
-  m.hp -= dmg; m.flash = MT[m.type] && m.g && m.g.userData.noSquash ? .3 : .15; dmgNum(m.x, (m.gy || 0) + MT[m.type].h + .6, m.z, dmg, dmg >= 60, wm > 1.05 ? 'weak' : wm < .95 ? 'res' : ''); if (by === me.peer || by === 'me') hitmark();
+  m.hp -= dmg; m.flash = MT[m.type] && m.g && m.g.userData.noSquash ? .3 : .15; dmgNum(m.x, (m.gy || 0) + MT[m.type].h + .6, m.z, dmg, dmg >= 60, wm > 1.05 ? 'weak' : wm < .95 ? 'res' : ''); if (by === me.peer || by === 'me') hitmark(); impactPop(m, f, by);
   if (f) { if (f.slow) m.slowT = Math.max(m.slowT||0, f.slow); if (f.dot) { m.dotT = 3; m.dotD = f.dot*wm; } if (f.push && !MT[m.type].boss) { m.x += px*f.push*.5; m.z += pz*f.push*.5; } }
   if (m.hp <= 0) killMon(m);
 }
@@ -4115,7 +4208,7 @@ function deathFx(m){ puff(m.x, (m.gy || 0) + 1, m.z, m.type === 0 ? '#ff7a2a' : 
 function addDrop(t, x, z){ if (drops.size > 24) return; const id = W.did++; drops.set(id, {id, t, x, z, age:0, g:dropMesh(t)}); }
 function heal(n){ if (n > 1 && W.st === 'fight') WV.healed = true; me.hp = Math.min(100, me.hp + n); puff(me.x, me.y - 1.7 + 1, me.z, '#7dff9c', 8, 3, .5, .6, 2); }
 let lastHurtBy = null;
-function takeDamage(d, by){
+function takeDamage(d, by){ gpHurtTrack(d, by);
   if (!me.dead && playing) { shake = Math.min(1, shake + d/25); GRADE.uniforms.uHurt.value = Math.min(.8, GRADE.uniforms.uHurt.value + d/30); }
   if (me.dead || !playing) return; d = blDefend(d); me.hp -= d; me.hurtT = T; if (by) lastHurtBy = by;
   $('#hurt').style.opacity = 1; setTimeout(() => $('#hurt').style.opacity = 0, 180);
@@ -4124,7 +4217,7 @@ function takeDamage(d, by){
 function die(){
   me.dead = true; me.hp = 0; me.rT = room && others.size && mode !== 'pvp' ? 15 : 8; me.deaths++;
   const killer = mode === 'pvp' && lastHurtBy && others.get(lastHurtBy);
-  $('#dead').innerHTML = `Vous êtes tombé<small>${killer ? 'Éliminé par ' + esc(killer.name) + ' · ' : ''}retour dans <span id="rt">${Math.ceil(me.rT)}</span> s${room && others.size && mode !== 'pvp' ? ' · un allié peut vous relever en disant « Rise » près de votre âme' : ''}</small>`; $('#dead').classList.remove('hidden');
+  $('#dead').innerHTML = `Vous êtes tombé<small>${GP.cause && T - GP.causeT < 6 ? 'Tué par : ' + esc(GP.cause) + '<br>Conseil : ' + esc(deathTip()) + '<br>' : ''}${killer ? 'Éliminé par ' + esc(killer.name) + ' · ' : ''}retour dans <span id="rt">${Math.ceil(me.rT)}</span> s${room && others.size && mode !== 'pvp' ? ' · un allié peut vous relever en disant « Rise » près de votre âme' : ''}</small>`; $('#dead').classList.remove('hidden');
   if (killer && room) { room.emit('kill', {by:lastHurtBy}).catch(()=>{}); }
   if (mode === 'pvp' && known.length > 1) { if (isHost) addDrop('tome', me.x, me.z); else if (room) room.emit('pick', {drop:[r2(me.x), r2(me.z)]}).catch(()=>{}); }
   lastHurtBy = null;
@@ -4152,7 +4245,7 @@ function startWave(){
 }
 function spawnMon(type){
   const a = Math.random()*Math.PI*2, np = Math.max(1, players().length + (me.dead ? 1 : 0));
-  const mx = MT[type].hp * (MT[type].boss ? 1 + .1*(W.w-1) : 1 + .07*(W.w-1)) * (.7 + .3*np);
+  const mx = MT[type].hp * (MT[type].boss ? 1 + .1*(W.w-1) : 1 + .07*(W.w-1)) * (.7 + .3*np) * ddiff().hp;
   const sp0 = spawnPos(type), m = {id:W.nid++, type, x:sp0[0], z:sp0[1], hp:mx, max:Math.round(mx), atk:0, a:0, slowT:0, dotT:0, sk:4};
   m.tx = m.x; m.tz = m.z; m.g = monsterMesh(type); mons.set(m.id, m); champMaybe(m);
   if (MT[type].boss) bossSpawned(m);
@@ -4221,8 +4314,10 @@ function hostStep(dt){
     const sp = t.spd * .7 /* monstres ralentis de 30 % */ * (m.slowT > 0 ? .45 : 1) * (m.spdK || 1) * (m.rageT > T ? 1.3 : 1);
     const sameLvl = t.boss || Math.abs(walkH(tg.x, tg.z) - walkH(m.x, m.z)) < 1.3;
     const rg = t.ranged, shoot = rg && !m.chant && tg.peer[0] !== '#' && tg.peer !== 'cristal' && bd < rg.max && bd > rg.min;
-    if (shoot) { m.rk = (m.rk ?? 1) - dt; if (m.rk <= 0) { m.rk = rg.cd; m.a = .5; const fl = bd/24; if (!(m.blindT > T && Math.random() < .5)) if (!(m.blindT > T && Math.random() < .5)) W.arrows.push({t:fl, peer:tg.peer, x:tg.x, z:tg.z, dmg:rg.dmg}); W.hits.push(['arrow', m.id, tg.peer]); arrowFx(m, tg.peer); } }
+    if (shoot) { m.rk = (m.rk ?? 1) - dt; if (m.rk <= 0) { m.rk = rg.cd; m.a = .5; const fl = bd/24; if (!(m.blindT > T && Math.random() < .5) && !losBlocked(m.x, m.z, tg.x, tg.z)) if (!(m.blindT > T && Math.random() < .5) && !losBlocked(m.x, m.z, tg.x, tg.z)) W.arrows.push({t:fl, peer:tg.peer, x:tg.x, z:tg.z, dmg:rg.dmg}); W.hits.push(['arrow', m.id, tg.peer]); arrowFx(m, tg.peer); } }
     else if (m.type === 4) { if (bm) { m.x += (tg.x-m.x)/bd*sp*dt*bm; m.z += (tg.z-m.z)/bd*sp*dt*bm; } }
+    else if (m.hold) {}
+    else if (m.flee || (t.ranged && !m.hold && bd < 5.5 && tg.peer[0] !== '#' && tg.peer !== 'cristal')) fleeMove(m, tg, m.flee ? sp : sp*.8, dt, t);
     else if (m.hold) {}
     else if (m.flee) fleeMove(m, tg, sp, dt, t);
     else if (bd > t.reach*.85 || !sameLvl) { const u = steerMon(m, tg, bd, t, dt); moveMon(m, u[0]*sp*dt, u[1]*sp*dt, t); }
@@ -4574,7 +4669,8 @@ function encyHTML(){ const T2 = (head, rows) => '<table><tr>' + head.map(h => '<
   h += '<h4>Biomes de l\'arène</h4>' + T2(['Biome', 'Vagues', 'Dangers et astuces'], [['base', '1 à 5'], ['volcan', '6 à 10'], ['glace', '11 à 15'], ['corrompu', '16 à 18'], ['orage', '19'], ['temple', '20']].map(([k, w]) => ['<b>' + E((BIO_INFO[k] || {}).n || k) + '</b>', w, E((BIO_INFO[k] || {}).tip || 'Aucun danger particulier.')])) + '<p>Destruction cumulative : le Golem abat deux colonnes, la Liche brise des arches, le Wyrm fait tomber un pan de balustrade ; le Colosse abat aussi des colonnes.</p>';
   h += '<h4>Âmes, Académie et contrats</h4><p>Âmes gagnées même en perdant : 10 par vague tenue, 100 par boss, 30 par champion, 25 par monstre doré, 15 par objectif, plus les bonus des modificateurs et du Pacte du sang.</p>' + T2(['Salle', 'Coût', 'Ce qu\'elle débloque'], ROOMS.map(R => ['<b>' + E(R.n) + '</b>', R.c ? R.c + ' âmes' : '—', E(R.d) + (R.req ? ' (après ' + E((ROOMS.find(x => x.id === R.req) || {}).n || '') + ')' : '')]))
     + T2(['Contrat', 'Objectif', 'Paliers I / II / III', 'Âmes'], Object.values(CONTRACTS).map(C => ['<b>' + E(C.n) + '</b>', E(C.u), C.t.join(' / '), C.r.join(' / ')])) + '<p>Le palier II de « Voix parfaite » révèle aussi « Name of the Storm ». Les récompenses demandent la Salle des contrats.</p>';
-  h += '<h4>Toutes les commandes</h4><ul><li><b>Arbre des compétences</b> : touche K, ou le bouton du menu et de la Pause.</li><li><b>Clavier</b> : Z Q S D / W A S D se déplacer · Espace sauter · Clic tirer · 1 à 9 ou molette changer de sort · Clic droit retenir une prononciation · H Healing · F Éveil · E relever un allié · L écouter la phrase · V micro · M musique · Entrée écrire une incantation · T discuter · Tab scores · G guide · Échap pause.</li><li><b>Voix</b> : la phrase du sort ouvert · « Healing » · « Awaken » · « Rise » · « one », « two », « three » pour les choix · les mots des boss · les phrases secrètes et des grandes incantations.</li><li><b>Chat (tests)</b> : /aide · /suivante · /vague N · /autel · /vie · /compo X · /mod X · /pacte · /marchand · /dore · /ames N · /relique · /eveil · /parchemin · /maitrise N · /champion · /voie X · /secret · /grande X · /rituel X · /contrat.</li></ul>';
+  h += '<h4>Combat avancé</h4><ul><li><b>Esquive</b> (Shift) : roulade de quelques mètres dans la direction de déplacement, intouchable 0,45 s, recharge 3 s.</li><li><b>Frappe aérienne</b> : une nova lancée en plein saut fait +25 % de dégâts, +25 % de rayon et ralentit. <b>Élan</b> : une vague lancée en avançant pousse 60 % plus fort et va plus loin.</li><li><b>Hauteur</b> : depuis une terrasse, vos sorts font +15 % aux monstres situés plus bas. Les <b>colonnes</b> arrêtent les flèches des archers.</li><li><b>Comportements</b> : les archers reculent quand on s\'approche, les goules vous encerclent, les ogres <b>chargent</b> en ligne droite (ligne rouge au sol 1 s avant : esquivez sur le côté).</li><li><b>Flèches rouges</b> au bord de l\'écran : monstres proches hors champ (rouge vif : ils attaquent).</li><li><b>Difficulté</b> (menu) : ' + DIFFS.map(d => d.n + ' (vie ×' + d.hp + ', dégâts subis ×' + d.dmg + ')').join(', ') + '.</li><li><b>Archétypes</b> (menu) : ' + Object.values(ARCHS).map(A => A.n + ' : ' + A.d).join(' · ') + '.</li><li><b>Événements rares</b> en pleine vague (dès la 4) : Éclipse, Pluie de mana, Horde dorée.</li><li><b>Écran de mort</b> : indique ce qui vous a tué et donne un conseil.</li></ul>';
+  h += '<h4>Toutes les commandes</h4><ul><li><b>Arbre des compétences</b> : touche K, ou le bouton du menu et de la Pause.</li><li><b>Clavier</b> : Z Q S D / W A S D se déplacer · Espace sauter · Clic tirer · 1 à 9 ou molette changer de sort · Clic droit retenir une prononciation · Shift esquive · P passer le didacticiel · H Healing · F Éveil · E relever un allié · L écouter la phrase · V micro · M musique · Entrée écrire une incantation · T discuter · Tab scores · G guide · Échap pause.</li><li><b>Voix</b> : la phrase du sort ouvert · « Healing » · « Awaken » · « Rise » · « one », « two », « three » pour les choix · les mots des boss · les phrases secrètes et des grandes incantations.</li><li><b>Chat (tests)</b> : /aide · /suivante · /vague N · /autel · /vie · /compo X · /mod X · /pacte · /marchand · /dore · /ames N · /relique · /eveil · /parchemin · /maitrise N · /champion · /voie X · /secret · /grande X · /rituel X · /contrat.</li></ul>';
   return h; }
 function guideToc(){ const b = $('#gbody'); if (!b) return; const hs = [...b.querySelectorAll('h4')]; hs.forEach((x, i) => x.id = 'gd' + i); const nav = document.createElement('div'); nav.className = 'gtoc'; nav.innerHTML = '<b>Sommaire</b> : ' + hs.map((x, i) => '<a href="#gd' + i + '" data-i="' + i + '">' + esc(x.textContent) + '</a>').join(' · ');
   nav.onclick = e => { const a = e.target.closest('a'); if (!a) return; e.preventDefault(); const t = $('#gd' + a.dataset.i); if (t) t.scrollIntoView({behavior:'smooth', block:'start'}); }; b.prepend(nav); }
@@ -4703,7 +4799,7 @@ function onWorld(msg){
   const seen = new Set();
   for (const t of D.m) { if (!Array.isArray(t)) continue; const [id, ty, x, z, hp, mx, a] = t; if (!fin(id) || !MT[ty] || !fin(x) || !fin(z) || !fin(hp) || !fin(mx)) continue; seen.add(id);
     let m = mons.get(id); if (!m) { m = {id, type:ty, x, z, slowT:0, dotT:0, atk:0, sk:4}; m.g = monsterMesh(ty); mons.set(id, m); }
-    if (hp < (m.hp ?? hp)) { m.flash = .15; dmgNum(x, MT[ty].h + .6, z, (m.hp ?? hp) - hp, (m.hp ?? hp) - hp >= 60); } m.tx = x; m.tz = z; m.hp = hp; m.max = mx; if (a) m.a = .35; W.nid = Math.max(W.nid, id+1); }
+    if (hp < (m.hp ?? hp)) { m.flash = .15; puff(x, (m.gy || 0) + MT[ty].h*.6, z, '#fff2c0', 5, 4, .4, .3, 1); dmgNum(x, MT[ty].h + .6, z, (m.hp ?? hp) - hp, (m.hp ?? hp) - hp >= 60); } m.tx = x; m.tz = z; m.hp = hp; m.max = mx; if (a) m.a = .35; W.nid = Math.max(W.nid, id+1); }
   for (const [id, m] of mons) if (!seen.has(id)) { mons.delete(id); deathFx(m); }
   const ds = new Set();
   if (Array.isArray(D.d)) for (const t of D.d) { if (!Array.isArray(t)) continue; const [id, ty, x, z] = t; if (!fin(id) || !['tome','hp','mp','pw'].includes(ty) || !fin(x) || !fin(z)) continue; ds.add(id); if (!drops.has(id)) drops.set(id, {id, t:ty, x, z, age:0, g:dropMesh(ty)}); W.did = Math.max(W.did, id+1); }
