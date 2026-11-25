@@ -272,7 +272,7 @@ button{cursor:pointer}
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
-
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 {
 const $ = s => document.querySelector(s);
@@ -3520,7 +3520,7 @@ const aiModel = () => $('#eng').value === 'whisper' ? 'whisper' : $('#eng').valu
 let asrModel = '', asrW = null, asrReady = false, asrErr = '', asrPct = 0, asrDev = '', asrBusy = false, asrNext = null, asrId = 0, testing = false;
 const asrFiles = {};
 const WORKER = `
-import { pipeline, env } from 'data:text/javascript,';
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3';
 env.allowLocalModels = false;
 let asr = null, isW = false;
 self.onmessage = async e => {
