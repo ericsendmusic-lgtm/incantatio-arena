@@ -802,13 +802,52 @@ floor.visible = false; rune.visible = false;
   const m = new THREE.Mesh(new THREE.CircleGeometry(19, 96), new THREE.MeshStandardMaterial({map:tex, emissiveMap:glow, emissive:0xffffff, emissiveIntensity:.5, transparent:true, depthWrite:false, roughness:1, polygonOffset:true, polygonOffsetFactor:-4}));
   m.rotation.x = -Math.PI/2; m.position.y = .14; m.renderOrder = 2; scene.add(m); SIGIL.push(m); }
 
+const SOCLE = [];
+function socleTick(){ for (const R of SOCLE) { for (const o of R) { o.r.position.y = o.y + Math.sin(T*1.4 + o.p)*.12; o.r.rotation.y += .012; } if (R.glow) R.glow.opacity = .3 + Math.sin(T*2.2)*.1; } }
 /* ---------------- L'AUTEL DU CRISTAL (point focal) ---------------- */
 { /* massive black stone altar: stepped plinth, carved drum, horns */
-  const black = new THREE.MeshStandardMaterial({map:ENVT.wall.map, normalMap:ENVT.wall.normal, normalScale:new THREE.Vector2(1.6, 1.6), color:0x4a4452, roughness:.7, metalness:.1, envMapIntensity:.8}); addRim(black, .3);
-  const steps = new THREE.Mesh(new THREE.LatheGeometry([[0, .02], [6.6, .02], [6.6, .2], [5.7, .26], [5.7, .44], [4.8, .5], [4.8, .68], [0, .68]].map(([a, b]) => new THREE.Vector2(a, b)), 64), black); steps.receiveShadow = steps.castShadow = true; scene.add(steps);
-  const drum = new THREE.Mesh(new THREE.LatheGeometry([[0, 0], [2.3, 0], [2.4, .15], [2.05, .3], [1.85, 1.1], [2.1, 1.3], [2.3, 1.45], [2.15, 1.6], [0, 1.6]].map(([a, b]) => new THREE.Vector2(a, b)), 48), black); drum.position.y = .68; drum.castShadow = true; scene.add(drum);
+  /* SOCLE DU CRISTAL : dalles taillées en couronnes, colonnettes cannelées, piédestal à fûts groupés, cornes de bronze */
+  const SOC = [], ROT = [], soc = (g, m) => SOC.push([g, m]);
+  /* une dalle en secteur de couronne (UV en mètres : la texture garde sa taille, plus d'étirement) */
+  const sector = (ri, ro, a1, a2, y0, y1) => { const gp = .035, b1 = a1 + gp/ro, b2 = a2 - gp/ro, c1 = a1 + gp/ri, c2 = a2 - gp/ri, s = new THREE.Shape();
+    s.moveTo(Math.cos(c1)*ri, Math.sin(c1)*ri); s.lineTo(Math.cos(b1)*ro, Math.sin(b1)*ro); s.absarc(0, 0, ro, b1, b2, false); s.lineTo(Math.cos(c2)*ri, Math.sin(c2)*ri); s.absarc(0, 0, ri, c2, c1, true);
+    const g = new THREE.ExtrudeGeometry(s, {depth:y1 - y0 - .04, bevelEnabled:true, bevelThickness:.02, bevelSize:.025, bevelSegments:1, curveSegments:Math.max(3, Math.round((a2 - a1)*ro*2))}); g.rotateX(-Math.PI/2); g.translate(0, y0 + .02, 0); return g; };
+  const ringSlabs = (ri, ro, n, y0, y1, off) => { for (let i = 0; i < n; i++) { const a = (i + off)/n*Math.PI*2, j = (Math.random() - .5)*.025; soc(sector(ri, ro, a, a + Math.PI*2/n, y0, y1 + j), M4(0, 0, 0)); } };
+  ringSlabs(5.7, 6.6, 20, 0, .2, 0); ringSlabs(4.8, 5.7, 16, 0, .44, .5); ringSlabs(3.6, 4.8, 14, 0, .68, .25); ringSlabs(2.3, 3.6, 10, 0, .68, 0);
+  const octa = (r, d, y) => { const s = new THREE.Shape(); for (let i = 0; i < 8; i++) { const a = (i + .5)/8*Math.PI*2; s[i ? 'lineTo' : 'moveTo'](Math.cos(a)*r, Math.sin(a)*r); }
+    const g = new THREE.ExtrudeGeometry(s, {depth:d - .04, bevelEnabled:true, bevelThickness:.02, bevelSize:.03, bevelSegments:1}); g.rotateX(-Math.PI/2); g.translate(0, y + .02, 0); return g; };
+  /* fût cannelé : douze cannelures creusées dans un cylindre */
+  const fluted = (r0, r1, h, fl) => { const g = new THREE.CylinderGeometry(r1, r0, h, fl*4, 1, false), p = g.attributes.position, v = new THREE.Vector3();
+    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const a = Math.atan2(v.z, v.x), rr = Math.hypot(v.x, v.z); if (rr < .01) continue; const k = 1 - .07*Math.pow(Math.max(0, Math.cos(a*fl)), 2); p.setXYZ(i, v.x*k, v.y, v.z*k); }
+    g.computeVertexNormals(); const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i)*Math.PI*2*r0, uv.getY(i)*h); return g; };
+  /* le piédestal central : socle octogonal, quatre fûts autour d'un noyau, chapiteau évasé, couronne */
+  const ped = [];
+  ped.push([octa(2.35, .36, .68), M4(0, 0, 0)], [octa(1.95, .2, 1.04), M4(0, 0, 0)]);
+  ped.push([fluted(.95, .85, 1.1, 8), M4(0, 1.8, 0)]);
+  for (let i = 0; i < 4; i++) { const a = (i + .5)/4*Math.PI*2; ped.push([fluted(.3, .26, 1.1, 6), M4(Math.cos(a)*1.3, 1.8, Math.sin(a)*1.3)], [new THREE.CylinderGeometry(.38, .42, .14, 16), M4(Math.cos(a)*1.3, 1.31, Math.sin(a)*1.3)], [new THREE.CylinderGeometry(.42, .3, .2, 16), M4(Math.cos(a)*1.3, 2.43, Math.sin(a)*1.3)]); }
+  ped.push([new THREE.CylinderGeometry(2.05, 1.25, .4, 8), M4(0, 2.55, 0, 0, Math.PI/8)], [octa(2.2, .18, 2.75), M4(0, 0, 0)]);
+  const pm = new THREE.Mesh(mergeGeos(ped), stoneMat); pm.castShadow = pm.receiveShadow = true; scene.add(pm);
+  /* huit colonnettes sur la deuxième marche ; deux sont brisées, leurs tambours gisent au sol */
+  const col = [], tops = [];
+  for (let i = 0; i < 8; i++) { const a = (i + .5)/8*Math.PI*2, x = Math.cos(a)*5.25, z = Math.sin(a)*5.25, broken = i === 2 || i === 5, H = broken ? .9 + (i === 5 ? .5 : 0) : 2.5, y0 = .44;
+    col.push([blockGeo(.86, .28, .86), M4(x, y0 + .14, z, 0, -a)], [new THREE.CylinderGeometry(.33, .38, .16, 18), M4(x, y0 + .36, z)], [fluted(.27, .24, H, 6), M4(x, y0 + .44 + H/2, z, broken ? .06 : 0, a)]);
+    if (broken) col.push([fluted(.25, .25, .8, 6), M4(Math.cos(a + .22)*7.25, .25, Math.sin(a + .22)*7.25, Math.PI/2, 0, a + 1.3)], [new THREE.DodecahedronGeometry(.2, 0), M4(Math.cos(a - .2)*6.15, .34, Math.sin(a - .2)*6.15, .4, a, .2)], [new THREE.DodecahedronGeometry(.13, 0), M4(Math.cos(a - .12)*6.35, .3, Math.sin(a - .12)*6.35, 1, 0, .5)]);
+    else { col.push([new THREE.CylinderGeometry(.4, .25, .28, 18), M4(x, y0 + .44 + H + .14, z)], [blockGeo(.82, .14, .82), M4(x, y0 + .44 + H + .35, z, 0, -a)]); tops.push([x, y0 + .44 + H + .42, z]); }
+    OBS.push({x, z, r:.5}); }
+  const cm = new THREE.Mesh(mergeGeos(col), stoneMat); cm.castShadow = cm.receiveShadow = true; scene.add(cm);
+  const sm = new THREE.Mesh(mergeGeos(SOC), darkStone); sm.castShadow = sm.receiveShadow = true; scene.add(sm);
+  /* pierres runiques qui flottent au-dessus des colonnettes, reflets du cristal */
+  const runeM = new THREE.MeshStandardMaterial({color:0x9fd8ff, emissive:0x3aa8ff, emissiveIntensity:1.6, roughness:.15, metalness:.1});
+  for (const [x, y, z] of tops) { const r = new THREE.Mesh(geo('socRune', () => new THREE.OctahedronGeometry(.17, 0).scale(1, 1.7, 1)), runeM); r.position.set(x, y + .45, z); scene.add(r);
+    const gl = new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex, color:0x5ab8ff, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.75})); gl.scale.setScalar(1.3); r.add(gl); ROT.push({r, y:y + .45, p:Math.random()*6}); }
+  /* sillon lumineux sur la plateforme */
+  { const gm = new THREE.MeshBasicMaterial({color:0x1a9cff, transparent:true, opacity:.4, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}), g = new THREE.Mesh(new THREE.RingGeometry(4.05, 4.17, 96), gm); g.rotation.x = -Math.PI/2; g.position.y = .705; scene.add(g); ROT.glow = gm; }
+  SOCLE.push(ROT);
+  /* cornes de bronze patiné autour du cristal (UV à l'échelle : plus de texture étirée) */
+  const bronze = new THREE.MeshStandardMaterial({map:ENVT.wall.map, normalMap:ENVT.wall.normal, color:0x8a7a5e, roughness:.45, metalness:.65, envMapIntensity:1.1}); addRim(bronze, .3);
   for (let i = 0; i < 6; i++) { const a = i/6*Math.PI*2, c = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(.5, .9, 0), new THREE.Vector3(.7, 2.1, 0), new THREE.Vector3(.2, 3.1, 0)]);
-    const h = new THREE.Mesh(new THREE.TubeGeometry(c, 20, .22, 10), black); taper(h.geometry, c, .22, .02, 20, 10); h.position.set(Math.cos(a)*1.9, 2.1, Math.sin(a)*1.9); h.rotation.y = -a; h.castShadow = true; scene.add(h); }
+    const g = new THREE.TubeGeometry(c, 20, .2, 10); taper(g, c, .2, .02, 20, 10); const uv = g.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k)*3.4, uv.getY(k)*.9);
+    const h = new THREE.Mesh(g, bronze); h.position.set(Math.cos(a)*1.75, 2.9, Math.sin(a)*1.75); h.rotation.y = -a; h.castShadow = true; scene.add(h); }
   /* horizontal magic ring of red-orange energy turning around the crystal */
   const RING_U = {uT:{value:0}};
   const ringMat = new THREE.ShaderMaterial({uniforms:RING_U, transparent:true, depthWrite:false, side:THREE.DoubleSide, blending:THREE.AdditiveBlending,
@@ -3837,7 +3876,7 @@ function loop(){
   requestAnimationFrame(loop);
   let dt = Math.min(clock.getDelta(), .05); if (paused || storyFreeze) dt = 0; dt = timeScale(dt); T += dt; fragTick(dt); duelTick(dt);
   WIND.value = T; SPU.uT.value = T % 1000; updateAtmosphere(dt); bioTick(dt); comTick(dt); comTick(dt); SKY_U.uT.value = T; if (gradePass) { GRADE.uniforms.uT.value = T % 100; GRADE.uniforms.uHurt.value *= Math.pow(.1, dt); } rune.rotation.z += dt*.1; rune.material.opacity = .6 + Math.sin(T*2)*.25;
-  crystal.rotation.y += dt*.8; crystal.position.y = 4.56 + Math.sin(T*1.5)*.25; altarLight.intensity = 1.1 + Math.sin(T*3)*.15 + Math.random()*.08;
+  crystal.rotation.y += dt*.8; socleTick(); crystal.position.y = 4.56 + Math.sin(T*1.5)*.25; altarLight.intensity = 1.1 + Math.sin(T*3)*.15 + Math.random()*.08;
   if (Math.random() < .7) { const b = BRAZ[Math.floor(Math.random()*BRAZ.length)]; puff(b.x + (Math.random() - .5)*.5, b.y, b.z + (Math.random() - .5)*.5, Math.random() < .5 ? '#ff9a3a' : '#ffcf5a', 1, .5, b.small ? .25 : .5, .9, 2.4); }
   ALTAR.forEach(A => { A.RING_U.uT.value = T; A.r1.rotation.z = T*.35; A.r2.rotation.z = -T*.6; A.r2.rotation.y = Math.sin(T*.5)*.2; }); SIGIL.forEach(m => m.material.emissiveIntensity = .55 + Math.sin(T*1.7)*.25);
   FOGB.forEach((f, i) => { f.position.x += Math.sin(T*.1 + i)*dt*.4; });
