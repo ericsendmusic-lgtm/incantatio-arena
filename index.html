@@ -241,7 +241,7 @@ button{cursor:pointer}
   <div class="hud" id="hurt"></div>
   <div class="hud hidden" id="dead"></div>
   <div class="hud hidden" id="pause"><div><h3>Pause</h3><p id="pstat">La partie est figée.</p>
-    <button id="presume">Reprendre</button><button id="preco" class="hidden">Se reconnecter et reprendre</button><button id="pguide">Guide du sorcier</button><button id="pquit">Quitter la partie</button>
+    <button id="presume">Reprendre</button><button id="preco" class="hidden">Se reconnecter et reprendre</button><button id="pnext" title="Commande de test, aussi dans le chat : /suivante">Vague suivante (test)</button><button id="pguide">Guide du sorcier</button><button id="pquit">Quitter la partie</button>
     <p id="inv"></p></div></div>
   <div class="hud hidden" id="story"><div><h3 id="sth"></h3><p id="stx"></p><small>Entrée : continuer · L : écouter le récit</small></div></div>
   <div class="hud hidden" id="guide"><div><h3>Guide du sorcier</h3><div id="gbody"></div><small>G, Entrée ou Échap : fermer</small></div></div>
@@ -3432,7 +3432,7 @@ function guideHTML(){
   <li>Vous commencez avec un sort au hasard ; chaque <b>parchemin</b> en ajoute un autre au hasard.</li></ul>
   <h4>Survie</h4><ul><li><b>Healing</b> : criez « Healing » (ou touche H) — 30 mana → 22 PV, 8 s de recharge.</li><li>La vie remonte <b>très lentement</b> toute seule après 6 s sans dégâts. Le mana remonte lentement.</li>
   <li>Butin : croix d'émeraude +45 PV · cristaux de saphir +60 mana · parchemin = nouveau sort · rune de feu = dégâts ×1,5 pendant 25 s.</li><li>Les attaques de boss sont <b>annoncées au sol</b> (cercles et cônes rouges ou verts) : sortez-en !</li></ul>
-  <h4>Commandes de test</h4><ul><li>Dans le chat (T) : <b>/suivante</b> passe à la vague suivante, <b>/vague 15</b> va directement à la vague 15, <b>/autel</b> ouvre l'autel des choix, <b>/vie</b> remet la vie et le mana au maximum, <b>/aide</b> rappelle les commandes. En ligne, seul l'hôte peut changer de vague.</li></ul>
+  <h4>Commandes de test</h4><ul><li>Bouton <b>Vague suivante (test)</b> dans le menu Pause (Échap), ou dans le chat (T ou Entrée) : <b>/suivante</b> passe à la vague suivante, <b>/vague 15</b> va directement à la vague 15, <b>/autel</b> ouvre l'autel des choix, <b>/vie</b> remet la vie et le mana au maximum, <b>/aide</b> rappelle les commandes. En ligne, seul l'hôte peut changer de vague.</li></ul>
   <h4>Marques et réactions</h4><ul><li>Chaque sort marque sa cible 4 s (rond coloré au-dessus du monstre) : ${Object.entries(MK_N).map(([k, v]) => '<b style="color:' + ELC[k] + '">' + v + '</b>').join(', ')}. Un sort d'une <b>autre école</b> sur une cible marquée déclenche une réaction.</li>${Object.entries(RX_D).map(([k, d]) => '<li><b>' + RX[k] + '</b> (' + k.split('+').map(e => ELN[e]).join(' + ') + ') : ' + d + '</li>').join('')}<li>Les parchemins peuvent apporter des sorts d'autres écoles. Trois réactions secrètes demandent trois écoles en moins de 6 s.</li></ul>
   <h4>Qualité de l'incantation</h4><ul><li><b>Nette</b> (+10 %) : reconnue du premier coup. <b>Parfaite</b> (+25 %, 3 mana rendus) : nette et dite dans les 2,5 s où le sort est prêt — la barre dorée sous la phrase montre cette fenêtre. Trois Parfaites d'affilée : <b>Flux</b>, −20 % de mana pendant 6 s.</li><li><b>Presque !</b> : une phrase approchante lance quand même le sort à 60 %. La tolérance de la voix se règle dans le menu Pause. Le volume ne compte jamais.</li></ul>
   <h4>Autel des choix</h4><ul><li>Après chaque vague, choisissez une bénédiction parmi trois (touches 1, 2, 3, clic, ou « one », « two », « three »). L'autel favorise les familles déjà choisies : un style de jeu se dessine.</li><li>À la fin de la partie, la <b>chronique</b> résume vos exploits.</li></ul>
@@ -3710,7 +3710,7 @@ let chatOpen = false;
 function addChat(n, x, cls){ const p = document.createElement('p'); p.style.setProperty('--c', CL[cls] ? CL[cls].col : '#fff'); const b = document.createElement('b'); b.textContent = n + ' : '; p.append(b, document.createTextNode(x)); logPush(p); }
 function sys(x){ const p = document.createElement('p'); p.className = 'sys'; p.textContent = x; logPush(p); }
 function logPush(p){ const l = $('#chatlog'); l.append(p); while (l.children.length > 9) l.firstChild.remove(); }
-function openChat(sayMode){ chatOpen = !sayMode; const i = $('#chatin'); i.classList.remove('hidden'); i.classList.toggle('say', !!sayMode); i.dataset.say = sayMode ? '1' : ''; i.placeholder = sayMode ? 'Écrivez une incantation puis Entrée' : (room ? 'Message à la salle (ou parlez)' : 'Pas de salle en solo'); i.value = ''; document.exitPointerLock && document.exitPointerLock(); setTimeout(() => i.focus(), 0); }
+function openChat(sayMode){ chatOpen = !sayMode; const i = $('#chatin'); i.classList.remove('hidden'); i.classList.toggle('say', !!sayMode); i.dataset.say = sayMode ? '1' : ''; i.placeholder = sayMode ? 'Écrivez une incantation, ou une commande : /suivante, /vague 10, /aide' : (room ? 'Message à la salle, ou commande : /suivante, /aide' : 'Commande : /suivante, /vague 10, /autel, /vie, /aide'); i.value = ''; document.exitPointerLock && document.exitPointerLock(); setTimeout(() => i.focus(), 0); }
 function closeChat(){ chatOpen = false; const i = $('#chatin'); i.blur(); i.classList.add('hidden'); }
 function sendChat(){ const i = $('#chatin'), v = i.value.trim(); if (i.dataset.say) { if (v) { const m = matchSpell(v); if (m) tryCast(m.id); else fizzle(); } } else if (v && room) room.emit('chat', {x:v.slice(0, 140)}).catch(()=>{}); else if (v) addChat(me.name, v, me.cls); closeChat(); }
 $('#chatin').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') sendChat(); if (e.key === 'Escape') closeChat(); });
@@ -3775,6 +3775,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 $('#preco').onclick = async () => { $('#preco').disabled = true; const ok = await netRejoin(); $('#preco').disabled = false; if (ok) $('#presume').onclick(); };
 $('#pguide').onclick = () => openGuide();
 { const b = document.createElement('button'); b.id = 'ptol'; const lab = () => b.textContent = 'Tolérance de la voix : ' + ['Stricte', 'Normale', 'Souple'][TOL.v]; lab(); b.onclick = () => { TOL.v = (TOL.v + 1) % 3; try { localStorage.setItem('incantatio-tol', TOL.v); } catch (e) {} lab(); }; const g = $('#pguide'); if (g) g.parentNode.insertBefore(b, g.nextSibling); }
+$('#pnext').onclick = () => { if (room && !isHost) { toast('Seul l\'hôte de la salle peut changer de vague.'); return; } skipToWave(W.w + 1); $('#presume').onclick(); };
 $('#pquit').onclick = () => { netLeave(); location.href = location.pathname; };
 renderer.domElement.addEventListener('mousedown', e => {
   if (!playing) return;
