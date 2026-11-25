@@ -2072,6 +2072,8 @@ function wavesQuality(id, Q){ if (hasPact('murmure') && !Q.perfect) Q.q *= .6; }
 /* ---- résurrection incantée : « Rise » près de l'âme d'un allié ---- */
 function riseTarget(){ if (me.dead || !room) return null; for (const [p, o] of others) if (o.dead && Math.hypot(o.g.position.x - me.x, o.g.position.z - me.z) < 3.5) return p; return null; }
 const riseNear = () => !!riseTarget();
+const GAME_VER = 'v2.0.4 · 25/11 12:05';
+{ const v = document.createElement('div'); v.id = 'gamever'; v.textContent = 'Incantatio Arena ' + GAME_VER; v.style.cssText = 'position:fixed;right:8px;bottom:4px;font:12px Georgia,serif;color:#f3e6c8;opacity:.55;z-index:70;pointer-events:none'; document.body.appendChild(v); }
 function riseStart(){ const p = riseTarget(); if (!p) return false; WV.rise = {peer:p, t:3}; toast('Résurrection : restez près de son âme 3 s'); return true; }
 function riseVoice(n){ if (!/\b(rise|rice|rize|raise|rais)\b/.test(n)) return false; return riseStart(); }
 function riseTick(dt){ const R = WV.rise; if (!R) return; const o = others.get(R.peer); if (!o || !o.dead || me.dead || Math.hypot(o.g.position.x - me.x, o.g.position.z - me.z) > 3.8) { WV.rise = null; toast('Résurrection interrompue'); return; }
@@ -2126,6 +2128,7 @@ function wavesHud(){ const el = $('#wvinfo'); if (!el) return; if (!playing || W
   if (WV.chantV && WV.chantV.on) p.push('Chant : ' + Math.max(0, Math.ceil(WV.chantV.t)) + ' s');
   if (st === 'fight' && WV.curse) p.push('Mot maudit : « ' + esc(WV.curse) + ' »');
   if (RUN.pacts && RUN.pacts.length) p.push('Pactes : ' + RUN.pacts.map(k => PACTS[k].n.replace('Pacte ', '')).join(', ') + (RUN.seal ? ' (scellé : ' + ELN[RUN.seal] + ')' : ''));
+  { const dn = [...others.values()].filter(o => o.dead); if (dn.length && !riseNear() && mode !== 'pvp') p.push('<b>' + dn.map(o => esc(o.name)).join(', ') + ' à terre : rejoignez son âme bleue et dites « Rise » (ou E)</b>'); }
   if (riseNear() && !WV.rise) p.push('<b>Allié à terre : dites « Rise » ou touche E</b>'); if (WV.rise) p.push('Résurrection… ' + Math.ceil(WV.rise.t) + ' s');
   const h = p.map(x => '<div>' + x + '</div>').join(''); if (el.innerHTML !== h) el.innerHTML = h; }
 addEventListener('keydown', e => { if (e.code === 'KeyE' && playing && !chatOpen && !e.repeat) riseStart(); }, true);
@@ -4023,9 +4026,9 @@ function takeDamage(d, by){
   if (me.hp <= 0) die();
 }
 function die(){
-  me.dead = true; me.hp = 0; me.rT = 8; me.deaths++;
+  me.dead = true; me.hp = 0; me.rT = room && others.size && mode !== 'pvp' ? 15 : 8; me.deaths++;
   const killer = mode === 'pvp' && lastHurtBy && others.get(lastHurtBy);
-  $('#dead').innerHTML = `Vous êtes tombé<small>${killer ? 'Éliminé par ' + esc(killer.name) + ' · ' : ''}retour dans <span id="rt">8</span> s</small>`; $('#dead').classList.remove('hidden');
+  $('#dead').innerHTML = `Vous êtes tombé<small>${killer ? 'Éliminé par ' + esc(killer.name) + ' · ' : ''}retour dans <span id="rt">${Math.ceil(me.rT)}</span> s${room && others.size && mode !== 'pvp' ? ' · un allié peut vous relever en disant « Rise » près de votre âme' : ''}</small>`; $('#dead').classList.remove('hidden');
   if (killer && room) { room.emit('kill', {by:lastHurtBy}).catch(()=>{}); }
   if (mode === 'pvp' && known.length > 1) { if (isHost) addDrop('tome', me.x, me.z); else if (room) room.emit('pick', {drop:[r2(me.x), r2(me.z)]}).catch(()=>{}); }
   lastHurtBy = null;
@@ -4707,7 +4710,7 @@ function syncOthers(dt){
     if (!o || o.cls !== pr.c || o.name !== nm) { if (o) scene.remove(o.g); else sys(nm + ' entre dans l\'arène'); o = {cls:pr.c, name:nm, g:wizardMesh(pr.c, nm), tx:pr.x, tz:pr.z}; o.g.position.set(pr.x, groundH(pr.x, pr.z), pr.z); others.set(p.peer, o); }
     o.tx = clamp(pr.x, -60, 60); o.tz = clamp(pr.z, -60, 60); o.ry = fin(pr.ry) ? pr.ry : 0; o.hp = fin(pr.hp) ? clamp(pr.hp, 0, 100) : 100; o.dead = !!pr.dd; o.pk = fin(pr.pk) ? pr.pk : 0; o.dth = fin(pr.de) ? pr.de : 0; o.since = pr.since;
     o.g.position.x += (o.tx - o.g.position.x)*Math.min(1, dt*12); o.g.position.z += (o.tz - o.g.position.z)*Math.min(1, dt*12); o.g.position.y = groundH(o.g.position.x, o.g.position.z); o.g.rotation.y = o.ry; o.g.visible = !o.dead;
-    if (o.dead && !o.soul) { o.soul = new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex, color:0xbfe6ff, transparent:true, opacity:.8, blending:THREE.AdditiveBlending, depthWrite:false})); o.soul.scale.setScalar(1.4); scene.add(o.soul); } if (o.soul) { o.soul.visible = o.dead; o.soul.position.set(o.g.position.x, o.g.position.y + 1.2 + Math.sin(T*2)*.2, o.g.position.z); }
+    if (o.dead && !o.soul) { o.soul = new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex, color:0x7fd0ff, transparent:true, opacity:.95, blending:THREE.AdditiveBlending, depthWrite:false, fog:false})); o.soul.scale.setScalar(2.6); const bm = new THREE.Mesh(new THREE.CylinderGeometry(.35, .6, 14, 12, 1, true).translate(0, 6, 0), new THREE.MeshBasicMaterial({color:0x7fd0ff, transparent:true, opacity:.28, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, fog:false})); bm.scale.set(1/2.6, 1/2.6, 1/2.6); o.soul.add(bm); scene.add(o.soul); } if (o.soul) { o.soul.visible = o.dead; o.soul.position.set(o.g.position.x, o.g.position.y + 1.2 + Math.sin(T*2)*.2, o.g.position.z); }
   }
 }
 let presT = 0;
