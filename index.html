@@ -1239,6 +1239,185 @@ function updateAtmosphere(dt){
 function aaaQuality(hi){ const s = hi ? 2048 : 1024; if (moon.shadow.mapSize.x !== s) { moon.shadow.mapSize.set(s, s); if (moon.shadow.map) { moon.shadow.map.dispose(); moon.shadow.map = null; } } if (AAA.dust) AAA.dust.visible = hi; AAA.rays.forEach(r => r.g.visible = hi); }
 
 setupAAARendering();
+/* ===================== COMBAT 1.1 : marques et réactions, qualité d'incantation, autel des choix, chronique ===================== */
+let pageId = '';
+function curSpell(){ return known.includes(pageId) ? pageId : (known[0] || me.cls + ':0'); }
+const ELC = {fire:'#ff7a2a', ice:'#7fdcff', storm:'#ffe259', spirit:'#7dff9c', shadow:'#c08aff'}, MK_N = {fire:'Embrasé', ice:'Givré', storm:'Chargé', spirit:'Hanté', shadow:'Corrompu'};
+const RX = {'fire+ice':'Vapeur brûlante', 'fire+storm':'Surcharge', 'fire+spirit':'Bûcher sacré', 'fire+shadow':'Flammes obscures', 'ice+storm':'Supraconduction', 'ice+spirit':'Prison spectrale',
+  'ice+shadow':'Gel noir', 'spirit+storm':'Jugement', 'shadow+storm':'Orage du néant', 'shadow+spirit':'Éclipse', storm3:'Tempête primordiale', requiem:'Requiem', five:'Rituel des Cinq Éléments'};
+const RX_D = {'fire+ice':'nuage brûlant, les monstres ratent un coup sur deux', 'fire+storm':'explosion qui repousse tout', 'fire+spirit':'flammes blanches : soignent les alliés, dégâts doublés aux morts-vivants', 'fire+shadow':'brûlure qui saute sur un voisin à la mort',
+  'ice+storm':'la cible gelée se brise : gros dégâts, puis +25 % de dégâts subis 6 s', 'ice+spirit':'immobilise 3 s puis libère 40 dégâts', 'ice+shadow':'statue qui explose en éclats à sa mort', 'spirit+storm':'la foudre frappe tous les monstres Hantés',
+  'shadow+storm':'trou noir qui aspire les monstres 2 s', 'shadow+spirit':'la cible se bat pour vous 5 s'};
+const UNDEAD = /Squelette|Goule|Liche|Spectre|Fant|Zombie|Revenant|Momie/i;
+const RXS = {holes:[]};
+function mkSync(m){ m.mkEl = m.mk ? m.mk.el : ''; m.mkT = m.mk ? m.mk.t : 0; W.hits.push(['mk', m.id, m.mkEl, m.mk ? 4 : 0]); }
+/* appelé par hurt() chez l'hôte : vulnérabilités, marques, réactions */
+function rxHurt(m, dmg, f, by){ if (!f) return dmg; if (by) m.lastBy = by; if (f.sn) m.lastSpell = f.sn;
+  if (m.vulnT > T) dmg *= 1.25; if (f.tg && m.mk && m.mk.el === 'ice' && m.mk.t > T) dmg *= 1.3;
+  const el = f.el; if (!el || el === 'arcane' || f.basic || f.rx) return dmg;
+  const hist = m.mkH || (m.mkH = []); hist.push([el, T]); while (hist.length && T - hist[0][1] > 6) hist.shift(); const set = new Set(hist.map(h => h[0]));
+  if (set.size >= 5 && !m.r5) { m.r5 = 1; rxSecret('five', m, by, f); } else if (['fire', 'ice', 'storm'].every(e => set.has(e)) && !m.r3a) { m.r3a = 1; rxSecret('storm3', m, by, f); } else if (['spirit', 'shadow', 'ice'].every(e => set.has(e)) && !m.r3b) { m.r3b = 1; rxSecret('requiem', m, by, f); }
+  if (m.mk && m.mk.t > T && m.mk.el !== el) { const a = m.mk.el; m.mk = f.dm && f.dm !== el && f.dm !== a ? {el:f.dm, t:T + 4} : null; mkSync(m); react(m, a, el, by, f); }
+  else { m.mk = {el, t:T + 4}; mkSync(m); }
+  return dmg; }
+const rxNear = (x, z, r) => [...mons.values()].filter(o => Math.hypot(o.x - x, o.z - z) < r + MT[o.type].r);
+function rxHit(o, d, x, z, by){ const dd = Math.hypot(o.x - x, o.z - z) || 1; hurt(o, d, {el:null, rx:1}, (o.x - x)/dd, (o.z - z)/dd, by); }
+function rxHealPlayers(x, z, r, n){ if (Math.hypot(me.x - x, me.z - z) < r && !me.dead) heal(n); for (const [p, o] of others) if (!o.dead && Math.hypot(o.tx - x, o.tz - z) < r) W.hits.push(['heal', p, Math.round(n)]); }
+function react(m, a, b, by, f){ const key = [a, b].sort().join('+'); if (!RX[key]) return; const k = f.cat ? 1.4 : 1, x = m.x, z = m.z;
+  rxFx(key, x, z, by); W.hits.push(['rx', key, r2(x), r2(z), by || '']);
+  switch (key) {
+    case 'fire+ice': rxNear(x, z, 5).forEach(o => { o.blindT = T + 4; o.dotT = Math.max(o.dotT || 0, 4); o.dotD = Math.max(o.dotD || 0, 6*k); }); break;
+    case 'fire+storm': rxNear(x, z, 6).forEach(o => { rxHit(o, 32*k, x, z, by); const dx = o.x - x, dz = o.z - z, d = Math.hypot(dx, dz) || 1; if (!MT[o.type].boss && !MT[o.type].head) for (let s = 0; s < 6; s++) moveMon(o, dx/d*.5, dz/d*.5, MT[o.type]); }); break;
+    case 'fire+spirit': rxNear(x, z, 6).forEach(o => rxHit(o, (UNDEAD.test(MT[o.type].n) ? 50 : 25)*k, x, z, by)); rxHealPlayers(x, z, 6, 14*k); break;
+    case 'fire+shadow': m.darkBurn = T + 8; m.dotT = Math.max(m.dotT || 0, 6); m.dotD = Math.max(m.dotD || 0, 8*k); break;
+    case 'ice+storm': m.vulnT = T + 6; rxHit(m, 55*k, x, z, by); break;
+    case 'ice+spirit': if (!MT[m.type].boss) m.stunT = T + 3; m.prisonT = T + 3; m.prisonD = 40*k; m.prisonBy = by; break;
+    case 'ice+shadow': if (!MT[m.type].boss) m.stunT = T + 2; m.blackIce = 1; break;
+    case 'spirit+storm': [...mons.values()].filter(o => o === m || (o.mk && o.mk.el === 'spirit' && o.mk.t > T)).forEach(o => { rxHit(o, 38*k, o.x, o.z, by); W.hits.push(['bolt', r2(o.x), r2(o.z)]); boltAt(o.x, o.z); }); break;
+    case 'shadow+storm': RXS.holes.push({x, z, t:T + 2, k, by}); break;
+    case 'shadow+spirit': if (!MT[m.type].boss && !MT[m.type].head) m.charmT = T + 5; break; }
+  if (by && (by === me.peer || by === 'me')) rxMine(key); }
+function rxSecret(kind, m, by, f){ const x = m.x, z = m.z, k = f.cat ? 1.4 : 1; rxFx(kind, x, z, by); W.hits.push(['rx', kind, r2(x), r2(z), by || '']);
+  if (kind === 'storm3') rxNear(x, z, 8).forEach(o => rxHit(o, 70*k, x, z, by));
+  if (kind === 'requiem') rxNear(x, z, 10).forEach(o => { if (!MT[o.type].boss) o.stunT = T + 3; rxHit(o, 45*k, x, z, by); });
+  if (kind === 'five') { rxHit(m, 200*k, x, z, by); rxHealPlayers(x, z, 99, 40); }
+  if (by && (by === me.peer || by === 'me')) rxMine(kind); }
+/* chez l'hôte : prisons, trous noirs, monstres charmés */
+function rxTick(dt){ if (!isHost) return;
+  for (const m of [...mons.values()]) { if (m.prisonT && T >= m.prisonT) { const d = m.prisonD; m.prisonT = 0; rxHit(m, d, m.x, m.z, m.prisonBy); puff(m.x, (m.gy || 0) + 1, m.z, '#7dff9c', 20, 5, .9, .7, 1); }
+    if (m.charmT > T) { let best = null, bd = 20; for (const o of mons.values()) { if (o === m || o.charmT > T) continue; const d = Math.hypot(o.x - m.x, o.z - m.z); if (d < bd) { bd = d; best = o; } }
+      if (best) { const t = MT[m.type]; if (bd > t.reach) moveMon(m, (best.x - m.x)/bd*t.spd*.7*dt, (best.z - m.z)/bd*t.spd*.7*dt, t); else { m.atkC = (m.atkC || 0) - dt; if (m.atkC <= 0) { m.atkC = t.cd; m.a = .35; rxHit(best, Math.max(8, t.dmg*1.5), m.x, m.z, m.lastBy); } } } } }
+  for (let i = RXS.holes.length - 1; i >= 0; i--) { const h = RXS.holes[i]; if (T > h.t) { RXS.holes.splice(i, 1); continue; } for (const o of rxNear(h.x, h.z, 7)) { const dx = h.x - o.x, dz = h.z - o.z, d = Math.hypot(dx, dz) || 1; if (!MT[o.type].boss && !MT[o.type].head && d > .6) moveMon(o, dx/d*5*dt, dz/d*5*dt, MT[o.type]); o.holeD = (o.holeD || 0) + 12*h.k*dt; if (o.holeD > 4) { rxHit(o, o.holeD, h.x, h.z, h.by); o.holeD = 0; } } } }
+/* à la mort d'un monstre : flammes obscures, gel noir, crédit de l'élimination */
+function rxDeath(m){ if (!isHost) return;
+  if (m.darkBurn > T) { let best = null, bd = 6; for (const o of mons.values()) { if (o === m) continue; const d = Math.hypot(o.x - m.x, o.z - m.z); if (d < bd) { bd = d; best = o; } } if (best) { best.dotT = Math.max(best.dotT || 0, 6); best.dotD = Math.max(best.dotD || 0, 8); best.darkBurn = T + 8; W.hits.push(['rx', 'fire+shadow', r2(best.x), r2(best.z), '']); rxFx('fire+shadow', best.x, best.z, ''); } }
+  if (m.blackIce) { rxNear(m.x, m.z, 4).forEach(o => { if (o !== m) rxHit(o, 30, m.x, m.z, m.lastBy); }); W.hits.push(['rx', 'ice+shadow', r2(m.x), r2(m.z), '']); rxFx('ice+shadow', m.x, m.z, ''); }
+  W.hits.push(['kb', m.lastBy || '', m.lastSpell || '', MT[m.type].boss ? 1 : 0]); comKill(m.lastBy, m.lastSpell, MT[m.type].boss); }
+function boltAt(x, z){ const y = groundH(x, z); lightning([new THREE.Vector3(x + (Math.random() - .5)*3, 28, z + (Math.random() - .5)*3), new THREE.Vector3(x, y + .2, z)], '#fff4a0', .3, .12, .05); flash(x, y + 2, z, '#fff4a0', 6, .25); }
+function floatText(x, y, z, txt, col, sz){ const s = label(txt, col); if (!s) return; s.position.set(x, y, z); s.scale.multiplyScalar(sz || 1.4); scene.add(s); const y0 = y; fx.push({t:0, dur:1.4, upd:k => { s.position.y = y0 + k*1.6; s.material.opacity = k < .7 ? 1 : (1 - k)/.3; }, end:() => { scene.remove(s); s.material.dispose(); }}); }
+function rxFx(key, x, z, by){ const y = groundH(x, z), [a, b] = key.split('+'), ca = ELC[a] || '#ffffff', cb = ELC[b] || '#ffe8a0';
+  floatText(x, y + 3.2, z, RX[key] + ' !', key.length > 12 || !b ? '#ffe08a' : cb, key in {storm3:1, requiem:1, five:1} ? 2 : 1.4);
+  ringFx(x, z, key === 'fire+storm' ? 6 : 4.5, ca, .6, a, 1); puff(x, y + 1, z, ca, 22, 6, 1, .8, 1.5); puff(x, y + 1.2, z, cb, 22, 6, 1, .8, 1.5); flash(x, y + 2, z, cb, 5, .35);
+  if (key === 'fire+ice') puff(x, y + 1, z, '#e8eef2', 60, 4, 2.2, 2.6, 1.2);
+  if (key === 'fire+storm' || key === 'storm3') { shake = Math.max(shake, .35); sfx('boom', .7); }
+  if (key === 'shadow+storm') { const g = new THREE.Mesh(geo('rxHole', () => new THREE.SphereGeometry(1, 20, 14)), new THREE.MeshBasicMaterial({color:0x050008})); g.position.set(x, y + 1.6, z); scene.add(g); const r = new THREE.Mesh(geo('rxHoleR', () => new THREE.TorusGeometry(1.6, .08, 6, 40)), new THREE.MeshBasicMaterial({color:0xc08aff})); r.rotation.x = Math.PI/2; g.add(r); fx.push({t:0, dur:2, upd:k => { g.scale.setScalar(.4 + Math.sin(k*Math.PI)*.9); r.rotation.z += .2; if (Math.random() < .5) puff(x + (Math.random() - .5)*12, y + 1, z + (Math.random() - .5)*12, '#c08aff', 1, -3, .5, .5, 0); }, end:() => { scene.remove(g); }}); }
+  if (key === 'spirit+storm' || key === 'storm3') boltAt(x, z);
+  if (key === 'five' || key === 'requiem') { shake = Math.max(shake, .5); ringFx(x, z, 10, '#ffffff', 1, 'spirit', 1); } }
+/* messages de l'hôte */
+function comHit(h){ const t = h[0];
+  if (t === 'mk') { const m = mons.get(h[1]); if (m) { m.mkEl = typeof h[2] === 'string' ? h[2] : ''; m.mkT = T + (+h[3] || 0); } }
+  else if (t === 'rx' && typeof h[1] === 'string' && RX[h[1]] && fin(h[2]) && fin(h[3])) { rxFx(h[1], h[2], h[3], h[4]); if (h[4] && h[4] === me.peer) rxMine(h[1]); }
+  else if (t === 'heal' && h[1] === me.peer && fin(h[2])) heal(clamp(h[2], 0, 50));
+  else if (t === 'kb' && typeof h[1] === 'string') comKill(h[1], h[2], h[3]);
+  else if (t === 'bolt' && fin(h[1]) && fin(h[2])) boltAt(h[1], h[2]); }
+function rxMine(key){ STATS.rx++; STATS.rxK.add(key); if (hasB('prisme')) me.mp = Math.min(me.maxMp, me.mp + 5);
+  if (key in {storm3:1, requiem:1, five:1}) { try { const s = JSON.parse(localStorage.getItem('incantatio-secrets') || '[]'); if (!s.includes(key)) { s.push(key); localStorage.setItem('incantatio-secrets', JSON.stringify(s)); banner('Réaction secrète découverte', RX[key]); } } catch (e) {} } }
+function comKill(by, sn, boss){ if (!by || (by !== me.peer && by !== 'me')) return; STATS.kills++; if (sn) STATS.spellK[sn] = (STATS.spellK[sn] || 0) + 1; if (boss) STATS.bosses++;
+  if (hasB('calice')) me.mp = Math.min(me.maxMp, me.mp + 2); if (hasB('mains')) QL.free = true; }
+/* repère de marque au-dessus de chaque monstre */
+function rxMarkVis(m){ const u = m.g.userData; const on = m.mkEl && m.mkT > T; if (!on && !u.mkS) return;
+  if (!u.mkS) { u.mkS = new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false})); u.mkS.scale.setScalar(.9); m.g.add(u.mkS); }
+  u.mkS.visible = !!on; if (on) { u.mkS.material.color.set(ELC[m.mkEl] || '#ffffff'); u.mkS.position.set(0, MT[m.type].h + .9 + Math.sin(T*4)*.08, 0); u.mkS.material.opacity = .65 + Math.sin(T*6)*.25; } }
+
+/* ---- qualité d'incantation : Normale, Nette, Parfaite ; « Presque ! » ; Flux ---- */
+const QL = {ph:{}, hint:null, streak:0, best:0, fluxT:0, stoneT:0, free:false, n5:0, lastEl:null, prevEl:null, cur:null, lastPage:''};
+const STATS = {casts:0, nettes:0, parf:0, presque:0, rx:0, rxK:new Set(), kills:0, spellK:{}, sch:{}, bosses:0, t0:0};
+function statsReset(){ Object.assign(STATS, {casts:0, nettes:0, parf:0, presque:0, rx:0, rxK:new Set(), kills:0, spellK:{}, sch:{}, bosses:0, t0:now()}); QL.best = 0; QL.streak = 0; }
+const TOL = {v:1}; try { TOL.v = +(localStorage.getItem('incantatio-tol') ?? 1); } catch (e) {}
+function presque(text){ const n = lastNear; if (!n || n.s < .45 - TOL.v*.03 || !known.includes(n.id) || norm(text).length < 3) return false;
+  QL.hint = {presque:1}; uttCast = true; tryCast(n.id); uttCast = false; lastFail = {x:text, t:now()}; return true; }
+function manaCost(sp){ if (QL.free) return 0; let c = sp.mana; if (hasB('cristal')) c *= .85; if (QL.fluxT > now()) c *= .8; return Math.round(c); }
+function qualityFor(id){ const h = QL.hint; QL.hint = null; if (!h) return {q:1, n:''}; if (h.presque) return {q:.6, n:'Presque !'};
+  if (h.s >= .88) { const ready = Math.max(QL.ph[id] || 0, QL.cdEnd || 0), win = 2.5 + (hasB('argent') ? 1 : 0); if (now() - ready <= win && !hasB('fige')) return {q:1.25, n:'Parfaite !', perfect:1}; return {q:1.1, n:'Nette'}; }
+  return {q:1, n:''}; }
+function qualityApply(id, Q){ STATS.casts++; const el = ELEM(id, clsOf(id)); STATS.sch[el] = (STATS.sch[el] || 0) + 1; QL.prevEl = QL.lastEl; QL.lastEl = el; QL.free = false; QL.n5++;
+  if (Q.n === 'Presque !') { STATS.presque++; qPop('Presque !', '#c9b88a'); toast('Presque ! Le sort part à 60 %'); }
+  if (Q.n === 'Nette') { STATS.nettes++; QL.streak = 0; qPop('Nette', '#dfe8ff'); }
+  if (Q.perfect) { STATS.parf++; QL.streak++; QL.best = Math.max(QL.best, QL.streak); me.mp = Math.min(me.maxMp, me.mp + 3); TIMEK.stop = .045; sfxChime(); qPop(QL.streak >= 3 ? 'Parfaite ×' + QL.streak : 'Parfaite !', '#ffd86a');
+    if (QL.streak === 3) { QL.fluxT = now() + 6; toast('Flux : −20 % de mana pendant 6 s'); } if (hasB('pierre')) QL.stoneT = now() + 3; if (hasB('sablier') && !room) TIMEK.slow = 1;
+    if (hasB('resonne') && Math.random() < .25) setTimeout(() => { if (!me.dead && playing) { QL.cur = {q:1.25, n:'Écho'}; castOut(id); qPop('Écho !', '#ffd86a'); } }, 280); }
+  else if (!Q.n) QL.streak = 0; }
+function sfxChime(){ try { AC = AC || new AudioContext(); const t = AC.currentTime; [1318, 1976, 2637].forEach((f, i) => { const o = AC.createOscillator(), g = AC.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(.0001, t + i*.04); g.gain.exponentialRampToValueAtTime(.07, t + i*.04 + .01); g.gain.exponentialRampToValueAtTime(.0001, t + i*.04 + .5); o.connect(g); g.connect(AC.destination); o.start(t + i*.04); o.stop(t + i*.04 + .55); }); } catch (e) {} }
+const TIMEK = {stop:0, slow:0};
+function timeScale(dt){ if (TIMEK.stop > 0) { TIMEK.stop -= dt; return dt*.05; } if (TIMEK.slow > 0 && !room) { TIMEK.slow -= dt; return dt*.4; } return dt; }
+function castExtras(id, data){ const Q = QL.cur || {q:1}; QL.cur = null; data.q = Q.q; const el = ELEM(id, clsOf(id)); let bm = 1; if (hasB('coeur') && el === 'fire') bm *= 1.25; if (hasB('fige')) bm *= 1.15; if (bm !== 1) data.bm = r2(bm);
+  if (hasB('cata')) data.cat = 1; if (hasB('givre')) data.tg = 1; if (hasB('double') && QL.prevEl && QL.prevEl !== el && QL.prevEl !== 'arcane') data.dm = QL.prevEl; if (hasB('neant') && id !== 'basic' && QL.n5 % 5 === 0) data.vx = 1; }
+function voidBurst(o, d, by){ let best = null, bs = -1; for (const m of mons.values()) { const dx = m.x - o.x, dz = m.z - o.z, dist = Math.hypot(dx, dz); if (dist > 30) continue; const s = (dx*d.x + dz*d.z)/(dist || 1); if (s > .85 && (!best || dist < bs)) { best = m; bs = dist; } }
+  if (!best) return; const x = best.x, z = best.z; rxNear(x, z, 4).forEach(m => rxHit(m, 25, x, z, by)); W.hits.push(['rx', 'shadow+spirit', r2(x), r2(z), '']); ringFx(x, z, 4, '#c08aff', .5, 'shadow', 1); puff(x, groundH(x, z) + 1, z, '#2a0a3a', 30, 6, 1.2, .8, 1); }
+let qpopT = 0; function qPop(txt, col){ const e = $('#qpop'); if (!e) return; e.textContent = txt; e.style.color = col; e.classList.remove('go'); void e.offsetWidth; e.classList.add('go'); }
+
+/* ---- l'Autel des choix : trois bénédictions après chaque vague ---- */
+const BLESS = [
+  {id:'coeur', n:'Cœur incandescent', f:'Offensive', r:1, tags:['fire'], d:'+25 % de dégâts de Feu'},
+  {id:'givre', n:'Tranchant du givre', f:'Offensive', r:1, tags:['ice', 'mark'], d:'Les cibles Givrées subissent +30 % de dégâts'},
+  {id:'chaine', n:'Chaîne longue', f:'Offensive', r:1, tags:['storm'], d:'+2 rebonds aux sorts en chaîne'},
+  {id:'pierre', n:'Peau de pierre', f:'Défensive', r:2, tags:['perfect', 'blood'], d:'−20 % de dégâts subis pendant 3 s après une Parfaite'},
+  {id:'voile', n:'Voile spectral', f:'Défensive', r:1, tags:['blood'], d:'La première attaque subie à chaque vague est annulée'},
+  {id:'sang', n:'Sang lent', f:'Défensive', r:1, tags:['blood'], d:'Régénération de vie ×3 hors combat'},
+  {id:'cata', n:'Catalyseur', f:'Élémentaire', r:2, tags:['mark'], d:'Réactions élémentaires +40 %'},
+  {id:'double', n:'Double marque', f:'Élémentaire', r:2, tags:['mark'], d:'Après une réaction, la cible garde la marque de votre école précédente'},
+  {id:'prisme', n:'Cœur prismatique', f:'Élémentaire', r:1, tags:['mark', 'mana'], d:'Chaque réaction rend 5 mana'},
+  {id:'argent', n:'Langue d\'argent', f:'Vocale', r:1, tags:['perfect'], d:'Fenêtre de la Parfaite : 2,5 s → 3,5 s'},
+  {id:'resonne', n:'Mot qui résonne', f:'Vocale', r:3, tags:['perfect'], d:'25 % de chance qu\'une Parfaite se relance gratuitement'},
+  {id:'cristal', n:'Cristal de concentration', f:'Mana', r:1, tags:['mana'], d:'−15 % de consommation de mana'},
+  {id:'calice', n:'Calice', f:'Mana', r:1, tags:['mana', 'blood'], d:'Chaque élimination rend 2 mana'},
+  {id:'sobre', n:'Sobriété', f:'Mana', r:1, tags:['mana', 'blood'], d:'Healing coûte 20 mana au lieu de 30'},
+  {id:'neant', n:'Amulette du néant', f:'Règles', r:2, tags:['shadow'], d:'Chaque 5e sort crée une explosion d\'Ombre sur la cible visée'},
+  {id:'mains', n:'Mains nues', f:'Règles', r:3, tags:['mana'], d:'Plus de trait de base ; chaque élimination rend le sort suivant gratuit'},
+  {id:'sablier', n:'Sablier fêlé', f:'Règles', r:3, tags:['perfect'], d:'Le temps ralentit 1 s après chaque Parfaite (partie solo)'},
+  {id:'fige', n:'Phrase figée', f:'Règles', r:2, tags:['voice'], d:'La phrase du cycle ne change plus et les Parfaites deviennent impossibles, mais +15 % de dégâts'} ];
+const BL = new Set(), AUTEL = {open:false, offer:[], prevSt:'', veil:false, lastW:0};
+const hasB = id => BL.has(id);
+function altarOffer(){ const tags = {}; for (const id of BL) (BLESS.find(b => b.id === id) || {tags:[]}).tags.forEach(t => tags[t] = (tags[t] || 0) + 1);
+  const pool = BLESS.filter(b => !BL.has(b.id)), out = [];
+  for (let k = 0; k < 3 && pool.length; k++) { const w = pool.map(b => [60, 30, 10][b.r - 1]*(1 + .6*b.tags.reduce((s, t) => s + (tags[t] ? 1 : 0), 0))), sum = w.reduce((a, b) => a + b, 0); let r = Math.random()*sum, i = 0; while (r > w[i]) { r -= w[i]; i++; } out.push(pool.splice(Math.min(i, pool.length - 1), 1)[0]); }
+  return out; }
+function altarOpen(){ if (AUTEL.open) return; AUTEL.offer = altarOffer(); if (!AUTEL.offer.length) return; AUTEL.open = true; const R = ['commune', 'rare', 'légendaire'];
+  $('#altar').innerHTML = '<h3>Autel des choix</h3><div class="cards">' + AUTEL.offer.map((b, i) => `<div class="card r${b.r}" data-i="${i}"><b>${i + 1}</b><h4>${esc(b.n)}</h4><small>${b.f} · ${R[b.r - 1]}</small><p>${esc(b.d)}</p></div>`).join('') + '</div><small class="how">Touches 1, 2, 3 · clic · ou dites « one », « two », « three »</small>';
+  $('#altar').classList.remove('hidden'); sfxChime(); }
+function altarPick(i){ const b = AUTEL.offer[i]; if (!AUTEL.open || !b) return; BL.add(b.id); AUTEL.open = false; $('#altar').classList.add('hidden'); banner('Bénédiction : ' + b.n, b.d); flash(me.x, me.y, me.z, '#ffd86a', 4, .4); renderBook(); }
+function altarVoice(text){ if (!AUTEL.open) return false; const w = norm(text).split(' '); const map = {one:0, won:0, first:0, un:0, two:1, to:1, too:1, second:1, deux:1, three:2, tree:2, third:2, trois:2}; for (const x of w) if (x in map) { altarPick(map[x]); return true; } return false; }
+function blDefend(d){ if (hasB('voile') && !AUTEL.veil && d > 0) { AUTEL.veil = true; qPop('Voile spectral', '#bfe6ff'); return 0; } if (hasB('pierre') && QL.stoneT > now()) d *= .8; return d; }
+const healCost = () => hasB('sobre') ? 20 : HEALING.mana;
+
+/* ---- chronique de partie ---- */
+function chronShow(){ const el = Object.entries(STATS.sch).filter(([k]) => k !== 'arcane').sort((a, b) => b[1] - a[1])[0], word = Object.entries(STATS.spellK).sort((a, b) => b[1] - a[1])[0], mins = Math.max(1, Math.round((now() - STATS.t0)/60));
+  const blist = [...BL].map(id => (BLESS.find(b => b.id === id) || {}).n).filter(Boolean);
+  $('#chron').innerHTML = `<h3>Chronique de la partie</h3><p class="sub">Vague ${W.w} atteinte · ${mins} min · ${FRAG_N >= 1 ? Math.min(3, FRAG_N) + ' fragment' + (FRAG_N > 1 ? 's' : '') + ' du Cristal' : 'aucun fragment du Cristal'}</p>
+    <table><tr><td>Monstres vaincus</td><td>${STATS.kills}</td></tr><tr><td>Incantations</td><td>${STATS.casts} dont ${STATS.parf} Parfaites et ${STATS.nettes} Nettes</td></tr><tr><td>Plus longue série de Parfaites</td><td>${QL.best}</td></tr>
+    <tr><td>Réactions élémentaires</td><td>${STATS.rx}${STATS.rxK.size ? ' (' + [...STATS.rxK].map(k => RX[k]).join(', ') + ')' : ''}</td></tr><tr><td>École favorite</td><td>${el ? ELN[el[0]] || el[0] : '—'}</td></tr>
+    <tr><td>Bénédictions</td><td>${blist.length ? blist.join(', ') : '—'}</td></tr></table>
+    <p class="word">${word ? 'Le mot de la partie : <b>« ' + esc(word[0]) + ' »</b> (' + word[1] + ' victimes)' : 'Prononcez vos sorts pour écrire votre légende.'}</p><small>Entrée : fermer</small>`;
+  $('#chron').classList.remove('hidden'); }
+addEventListener('keydown', e => { if (!$('#chron').classList.contains('hidden') && (e.code === 'Enter' || e.code === 'Escape')) { $('#chron').classList.add('hidden'); e.preventDefault(); e.stopImmediatePropagation(); return; }
+  if (AUTEL.open && /^Digit[1-3]$/.test(e.code) && !chatOpen) { altarPick(+e.code.slice(5) - 1); e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+
+/* ---- interface : autel, chronique, fenêtre de la Parfaite ---- */
+{ const st = document.createElement('style'); st.textContent = `
+#altar{position:fixed;left:50%;top:13%;transform:translateX(-50%);z-index:30;text-align:center;pointer-events:auto;font-family:'IM Fell English',Georgia,serif;color:#f3e6c8}
+#altar h3{margin:0 0 8px;font-family:'Pirata One',Cinzel,serif;font-size:30px;color:#f0d9a8;text-shadow:0 2px 8px #000}
+#altar .cards{display:flex;gap:12px}
+#altar .card{width:210px;padding:12px 14px;border-radius:10px;background:linear-gradient(#2a1f16f0,#15100cf0);border:1px solid #8a6a3a;cursor:pointer;box-shadow:0 6px 18px #000a;text-align:left}
+#altar .card:hover{border-color:#f0d9a8} #altar .card b{float:right;color:#f0d9a8;font-size:20px} #altar .card h4{margin:0 0 2px;font-size:19px;color:#ffe8b8} #altar .card small{opacity:.75} #altar .card p{margin:8px 0 0;font-size:15px;line-height:1.3}
+#altar .card.r2{border-color:#5aa8ff;box-shadow:0 0 14px #5aa8ff55} #altar .card.r3{border-color:#ffb84a;box-shadow:0 0 18px #ffb84a77} #altar .how{display:block;margin-top:8px;opacity:.8;text-shadow:0 1px 4px #000}
+#chron{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:31;min-width:440px;max-width:560px;padding:18px 24px;border-radius:12px;background:linear-gradient(#efe2c4,#d9c59c);color:#3a2614;font-family:'IM Fell English',Georgia,serif;box-shadow:0 10px 40px #000c;border:2px solid #8a6a3a}
+#chron h3{margin:0;font-family:'Pirata One',Cinzel,serif;font-size:32px;color:#7a1a10;text-align:center} #chron .sub{text-align:center;margin:2px 0 10px;opacity:.8}
+#chron table{width:100%;border-collapse:collapse;font-size:16px} #chron td{padding:3px 4px;border-bottom:1px solid #8a6a3a44} #chron td:last-child{text-align:right} #chron .word{text-align:center;font-size:18px;margin:12px 0 4px} #chron small{display:block;text-align:center;opacity:.7}
+#qpop{position:fixed;left:50%;top:58%;transform:translate(-50%,0);z-index:20;font-family:'Pirata One',Cinzel,serif;font-size:30px;pointer-events:none;opacity:0;text-shadow:0 0 12px #000,0 0 4px #000}
+#qpop.go{animation:qp 1s ease-out} @keyframes qp{0%{opacity:0;transform:translate(-50%,10px) scale(.8)}15%{opacity:1;transform:translate(-50%,0) scale(1.08)}70%{opacity:1}100%{opacity:0;transform:translate(-50%,-18px) scale(1)}}
+#bkpw{height:4px;margin:4px 0 0;border-radius:2px;background:linear-gradient(90deg,#ffd86a,#fff2b8);box-shadow:0 0 6px #ffd86a;transform-origin:left;transition:transform .08s linear}
+#bklist i.sch{font-style:normal;font-size:.8em;opacity:.8}`;
+  document.head.appendChild(st);
+  for (const [id, cls] of [['altar', 'hud hidden'], ['chron', 'hud hidden'], ['qpop', '']]) { const d = document.createElement('div'); d.id = id; d.className = cls; document.body.appendChild(d); }
+  $('#altar').addEventListener('click', e => { const c = e.target.closest('.card'); if (c) altarPick(+c.dataset.i); });
+  const bk = $('#bkname'); if (bk && bk.parentNode) { const b = document.createElement('div'); b.id = 'bkpw'; bk.parentNode.insertBefore(b, bk.nextSibling); } }
+function comTick(dt){ rxTick(dt); if (playing && !AUTEL.wasPlaying) { BL.clear(); statsReset(); AUTEL.open = false; $('#altar').classList.add('hidden'); } AUTEL.wasPlaying = playing; if (playing && !AUTEL.wasPlaying) { BL.clear(); statsReset(); AUTEL.open = false; $('#altar').classList.add('hidden'); } AUTEL.wasPlaying = playing;
+  const st = W.st; if (AUTEL.prevSt === 'fight' && st === 'break' && W.w >= 1 && playing) altarOpen();
+  if (st === 'fight' && AUTEL.lastW !== W.w) { AUTEL.lastW = W.w; AUTEL.veil = false; }
+  if (AUTEL.prevSt !== 'over' && st === 'over' && playing) { chronShow(); AUTEL.open = false; $('#altar').classList.add('hidden'); }
+  if (AUTEL.prevSt === 'over' && st !== 'over') { BL.clear(); statsReset(); $('#chron').classList.add('hidden'); }
+  AUTEL.prevSt = st;
+  const pw = $('#bkpw'); if (pw && playing) { const id = curSpell(), ready = Math.max(QL.ph[id] || 0, cds[id] || 0), win = 2.5 + (hasB('argent') ? 1 : 0), k = now() < (cds[id] || 0) || hasB('fige') ? 0 : clamp(1 - (now() - ready)/win, 0, 1); pw.style.transform = 'scaleX(' + k.toFixed(3) + ')'; } }
 /* ===================== ARÈNE VIVANTE : biomes, transformations, dangers, destruction ===================== */
 /* Le biome se déduit de la vague (identique chez tous les joueurs, sans message réseau) ; la transformation dure 12 s pendant la pause entre deux vagues.
    Les dangers d'arène visent le joueur local (chacun voit les siens) ; les effets des sorts sur l'arène sont décidés par l'hôte. */
@@ -2227,28 +2406,29 @@ function matchSpell(text, lax){
   }
   lastNear = best ? {id:best, s:bs} : null;
   /* clic droit = intention claire : on lance le sort connu le plus proche dès 45 % */
-  return bs >= (lax ? .45 : frAccent() ? .62 : .66) ? {id:best, s:bs} : null;
+  return bs >= (lax ? .45 : frAccent() ? .62 : .66) - (TOL.v - 1)*.05 ? {id:best, s:bs} : null;
 }
 let pttOn = false, pttText = '', pttCast = false, uttCast = false, micWanted = true, prevPart = null, lastRes = 0; const heard = {n:'', t:-9};
 let voicePulse = 0;
 function onSpeech(raw, final, lax){
   const text = Array.isArray(raw) ? raw[0] : raw, all = Array.isArray(raw) ? raw.join(' ') : raw; voicePulse = Math.min(1, voicePulse + .45);
   if (!playing) return;
+  if (altarVoice(all)) return;
   if (duelCheck(all)) return;
   if (!uttCast && healCheck(all, final)) { uttCast = !final; return; }
   if (chatOpen) { $('#chatin').value = text; if (final) sendChat(); return; }
   pttText = (pttText && !final ? '' : '') + all; pttCast = pttCast || false;
   $('#bksaid').textContent = '« ' + text + ' »'; $('#mict').textContent = 'J\'entends : ' + text.slice(-28);
   /* apprentissage par sort : les 10 premières incantations du sort ouvert dans le grimoire sont retenues telles que le micro les entend */
-  { const curS = me.cls + ':' + page; if (!uttCast && known.includes(curS) && calLeft(curS) > 0 && norm(all).length >= 3) { const m0 = matchSpell(all, lax);
-    if (!final) { if (m0 && m0.id === curS && m0.s >= .8) { uttCast = true; calUse(curS); tryCast(curS); } else if (!(m0 && m0.id !== curS && m0.s >= .92)) return; }
+  { const curS = curSpell(); if (!uttCast && known.includes(curS) && calLeft(curS) > 0 && norm(all).length >= 3) { const m0 = matchSpell(all, lax);
+    if (!final) { if (m0 && m0.id === curS && m0.s >= .8) { uttCast = true; calUse(curS); QL.hint = {s:m0.s}; tryCast(curS); } else if (!(m0 && m0.id !== curS && m0.s >= .92)) return; }
     else if (!(m0 && m0.id !== curS && m0.s >= .9)) { addLearn(curS, all); calUse(curS); const left = calLeft(curS); toast('Appris pour « ' + incOf(curS) + ' » (' + (CAL_N - left) + '/' + CAL_N + ') : « ' + all.slice(0, 26) + ' »' + (left ? '' : ' · apprentissage de ce sort terminé')); uttCast = true; tryCast(curS); uttCast = false; renderBook(); return; } } }
-  if (!uttCast) { const m = matchSpell(all, lax); if (m && heard.n === spellOf(m.id).n && now() - heard.t < 3) { if (final) uttCast = false; return; } const quick = m && (m.s >= .8 || (prevPart && prevPart.id === m.id)); prevPart = m; if (final) prevPart = null; if (m && (final || quick)) { uttCast = true; if (lastFail && now() - lastFail.t < 6 && m.s >= .66 && addLearn(m.id, lastFail.x)) toast('Prononciation retenue pour ' + spellOf(m.id).n); lastFail = null; if (m.s < .8 && final && !lax) addLearn(m.id, all); tryCast(m.id); } else if (final && calib > 0 && all.trim().length > 1) { /* phase d'apprentissage : on lance le sort le plus proche et on retient la phrase */
-      const cur = me.cls + ':' + page, id = lastNear && lastNear.s > .25 ? lastNear.id : known.includes(cur) ? cur : known[0];
+  if (!uttCast) { const m = matchSpell(all, lax); if (m && heard.n === spellOf(m.id).n && now() - heard.t < 3) { if (final) uttCast = false; return; } const quick = m && (m.s >= .8 || (prevPart && prevPart.id === m.id)); prevPart = m; if (final) prevPart = null; if (m && (final || quick)) { uttCast = true; if (lastFail && now() - lastFail.t < 6 && m.s >= .66 && addLearn(m.id, lastFail.x)) toast('Prononciation retenue pour ' + spellOf(m.id).n); lastFail = null; if (m.s < .8 && final && !lax) addLearn(m.id, all); QL.hint = {s:m.s}; tryCast(m.id); } else if (final && calib > 0 && all.trim().length > 1) { /* phase d'apprentissage : on lance le sort le plus proche et on retient la phrase */
+      const cur = curSpell(), id = lastNear && lastNear.s > .25 ? lastNear.id : known.includes(cur) ? cur : known[0];
       addLearn(id, all); calib--; try { localStorage.setItem('incantatio-calib', calib); } catch (e) {}
       toast('Appris : « ' + text.slice(0, 24) + ' » = ' + spellOf(id).n + (calib ? ' (encore ' + calib + ' essais d\'apprentissage)' : ' · apprentissage terminé'));
       uttCast = true; tryCast(id); }
-    else if (final) { fizzle(); lastFail = {x:all, t:now()}; } }
+    else if (final) { if (!presque(all)) { fizzle(); lastFail = {x:all, t:now()}; } } }
   if (final) uttCast = false;
 }
 /* ---------- Whisper : vrai modèle de reconnaissance vocale, exécuté dans le navigateur ---------- */
@@ -2351,6 +2531,7 @@ function voskPhrases(){ const out = new Set(['Healing']);
   for (const id of ids) for (const v of (INCV[id] || [(spellOf(id) || {}).n])) if (v) out.add(v);
   if (!playing && CL[pickCls]) for (const sp of CL[pickCls].spells) out.add(sp.n);
   if (typeof DUEL_UI !== 'undefined' && DUEL_UI && !DUEL_UI.done) out.add(DUEL_UI.phrase);
+  if (typeof AUTEL !== 'undefined' && AUTEL.open) ['one', 'two', 'three'].forEach(w => out.add(w));
   return [...out]; }
 function voskGrammar(){ if (!vModel) return; const ph = voskPhrases(), m = new Map(); for (const p of ph) m.set(vForm(p), p);
   const g = JSON.stringify([...m.keys(), '[unk]']); if (g === vGram && vRec && vRec.cap === capRate) return; vGram = g; vForm2Ph = m;
@@ -2408,8 +2589,8 @@ function onVosk(res){
     const u = lastUtt && now() - lastUtt.t < 1.6 ? lastUtt : null; lastUtt = null;
     let say = ph;
     if (playing && u) { const tm = tplMatch(u.f, liveCands()); if ((!say || conf < .55) && tm) say = tm.ph; }
-    if (playing && u && !say && !voiceHook) { const curS = me.cls + ':' + page; if (known.includes(curS) && calLeft(curS) > 0 && u.dur > .25) say = incOf(curS); }
-    if (playing && u && say) { const curS = me.cls + ':' + page; if (say === incOf(curS) && calLeft(curS) > 0) storeTpl(say, u.f); else if (ph && conf > .8) storeTpl(say, u.f); }
+    if (playing && u && !say && !voiceHook) { const curS = curSpell(); if (known.includes(curS) && calLeft(curS) > 0 && u.dur > .25) say = incOf(curS); }
+    if (playing && u && say) { const curS = curSpell(); if (say === incOf(curS) && calLeft(curS) > 0) storeTpl(say, u.f); else if (ph && conf > .8) storeTpl(say, u.f); }
     if (!say) { if (playing && u && u.dur > .25) { lastFail = {x:'', t:now(), utt:u}; fizzle(); } else if (testing) onWhisper(''); return; }
     onWhisper(say); }, 120); }
 
@@ -2591,15 +2772,15 @@ let hmT = 0; function hitmark(){ hmT = .15; $('#cross').classList.add('hit'); }
 /* ---------- book ---------- */
 function renderBook(){
   const c = CL[me.cls], ids = c.spells.map((_, i) => me.cls + ':' + i);
-  page = clamp(page, 0, ids.length-1); if (!known.includes(ids[page]) && known.length) page = +known[0].split(':')[1]; const id = ids[page], sp = c.spells[page], has = known.includes(id);
-  $('#bkglyph').innerHTML = glyph(me.cls);
+  if (!known.includes(pageId) && known.length) pageId = known[0]; const id = pageId || ids[0], sp = spellOf(id) || c.spells[0], has = known.includes(id); page = Math.max(0, known.indexOf(id)); if (QL.lastPage !== id) { QL.lastPage = id; QL.ph[id] = now(); }
+  $('#bkglyph').innerHTML = glyph(clsOf(id) || me.cls);
   setTimeout(() => { const bm = $('#bkmeta'); bm.textContent = bm.textContent.replace(/ · apprentissage vocal \d+\/\d+/g, '') + (has && calLeft(id) > 0 ? ' · apprentissage vocal ' + (CAL_N - calLeft(id)) + '/' + CAL_N : ''); }, 0);
   $('#bkname').textContent = has ? incOf(id) : 'Page scellée';
   $('#bkhint').textContent = has ? (incOf(id) !== sp.n ? 'Sort : ' + sp.n + ' · criez « ' + incOf(id) + ' »' : 'Criez : « ' + sp.n + ' »') : 'Trouvez un parchemin pour la déchiffrer';
   $('#bkmeta').textContent = has ? `${sp.mana} mana · ${sp.cd}s · ${({bolt:'projectile',nova:'onde autour de vous',rain:'pluie au sol visé',wave:'vague frontale',chain:'arc en chaîne'})[sp.k]}` : '';
-  const cat = known.filter(k => k.startsWith(me.cls + ':')), sealed = ids.length - cat.length;
-  $('#bklist').innerHTML = cat.map((sid, n) => { const i = +sid.split(':')[1]; return `<li class="${i === page ? 'cur' : ''}" data-i="${i}"><s data-cd="${sid}"></s><span>${n + 1}. ${esc(incOf(sid))}</span><em>${c.spells[i].mana}</em></li>`; }).join('') + (sealed ? `<li class="lock"><span>~ ${sealed} page${sealed > 1 ? 's' : ''} scellée${sealed > 1 ? 's' : ''} ~</span></li>` : '');
-  $('#bklist').insertAdjacentHTML('beforeend', '<li class="heal" title="Échange du mana contre de la vie"><span>✚ Healing (H)</span><em>30</em></li>');
+  const cat = known, sealed = ids.filter(i => !known.includes(i)).length;
+  $('#bklist').innerHTML = cat.map((sid, n) => { const sc = clsOf(sid); return `<li class="${sid === id ? 'cur' : ''}" data-i="${n}"><s data-cd="${sid}"></s><span>${n + 1}. ${esc(incOf(sid))}${sc !== me.cls ? ' <i class="sch">· ' + (ELN[ELEM(sid, sc)] || '') + '</i>' : ''}</span><em>${manaCost(spellOf(sid))}</em></li>`; }).join('') + (sealed ? `<li class="lock"><span>~ ${sealed} page${sealed > 1 ? 's' : ''} scellée${sealed > 1 ? 's' : ''} ~</span></li>` : '');
+  $('#bklist').insertAdjacentHTML('beforeend', '<li class="heal" title="Échange du mana contre de la vie"><span>✚ Healing (H)</span><em>' + healCost() + '</em></li>');
 }
 function bookFlash(){ const b = $('#book'); b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash'); }
 
@@ -2642,11 +2823,10 @@ const lkeysAll = id => incAll(id).map(v => v === (spellOf(id) || {}).n ? id : id
 const incOf = id => INC_SEL[id] || (spellOf(id) || {}).n || '';
 /* cycle : après chaque lancer, la prochaine phrase est tirée au hasard parmi les autres du sort */
 const INC_BAG = {};
-function rotInc(id){ const v = INCV[id]; if (!v || v.length < 2) return; let b = INC_BAG[id];
+function rotInc(id){ const v = INCV[id]; if (!v || v.length < 2 || hasB('fige')) return; let b = INC_BAG[id];
   if (!b || !b.length) { b = INC_BAG[id] = v.filter(x => x !== incOf(id)).sort(() => Math.random() - .5); b.push(incOf(id)); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*i); [b[i], b[j]] = [b[j], b[i]]; } if (b[0] === incOf(id)) b.push(b.shift()); }
   INC_SEL[id] = b.shift(); }
 /* cycle : après chaque lancer, la prochaine phrase est tirée au hasard parmi les autres du sort */
-function rotInc(id){ const v = INCV[id]; if (!v || v.length < 2) return; const o = v.filter(x => x !== incOf(id)); INC_SEL[id] = o[Math.floor(Math.random()*o.length)]; }
 function pickInc(id){ const v = INCV[id]; INC_SEL[id] = v ? v[Math.floor(Math.random()*v.length)] : (spellOf(id) || {}).n; return INC_SEL[id]; }
 /* ce qu'on a appris pour une incantation ne sert qu'à cette incantation */
 const lkey = id => { const sp = spellOf(id); return !sp || incOf(id) === sp.n ? id : id + '|' + norm(incOf(id)); };
@@ -2658,9 +2838,9 @@ function tryCast(id){ if (paused) return;
   if (pttOn) pttCast = true;
   if (me.dead || !known.includes(id)) return;
   const sp = spellOf(id); if ((cds[id] || 0) > now()) { toast(sp.n + ' : pas encore prêt'); return; }
-  if (me.mp < sp.mana) { toast('Pas assez de mana'); return; }
-  me.mp -= sp.mana; cds[id] = now() + sp.cd; page = +id.split(':')[1]; if (id !== 'basic') rotInc(id); renderBook(); bookFlash();
-  $('#bkhint').textContent = sp.n + ' !'; castOut(id);
+  const cost = manaCost(sp); if (me.mp < cost) { toast('Pas assez de mana'); return; }
+  QL.cdEnd = cds[id] || 0; const Q = qualityFor(id); me.mp -= cost; cds[id] = now() + sp.cd; pageId = id; page = Math.max(0, known.indexOf(id)); QL.cur = Q; qualityApply(id, Q); QL.ph[id] = now() + sp.cd; if (id !== 'basic') rotInc(id); renderBook(); bookFlash();
+  $('#bkhint').textContent = sp.n + (QL.cur && QL.cur.n ? ' — ' + QL.cur.n : ' !'); castOut(id);
 }
 function aimDir(){ const d = new THREE.Vector3(); camera.getWorldDirection(d); return d; }
 function castOut(id){
@@ -2668,7 +2848,8 @@ function castOut(id){
   const sp = spellOf(id), d = aimDir(), o = camera.position.clone().addScaledVector(d, .9); o.y -= .3;
   const data = {s:id, o:[r2(o.x), r2(o.y), r2(o.z)], d:[r2(d.x), r2(d.y), r2(d.z)], sd:Math.floor(Math.random()*1e6)}; if (me.pwT > 0) data.pw = 1;
   if (sp.k === 'rain') { let t = d.y < -.02 ? -camera.position.y/d.y : 40; t = Math.min(t, 34); data.t = [r2(camera.position.x + d.x*t), r2(camera.position.z + d.z*t)]; }
-  if (sp.k === 'chain') data.ids = chainTargets(o, d, sp.j);
+  if (sp.k === 'chain') data.ids = chainTargets(o, d, sp.j + (hasB('chaine') ? 2 : 0));
+  castExtras(id, data);
   applyCast(data, me.peer, true);
   if (room) room.emit('cast', data).catch(()=>{});
 }
@@ -2683,11 +2864,12 @@ function rng(seed){ let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) | 0;
 
 function applyCast(data, caster, mine){
   if (!data || typeof data !== 'object') return;
-  let sp = spellOf(data.s); if (!sp) return; if (data.pw === 1) sp = Object.assign({}, sp, {dmg:sp.dmg*1.5});
+  let sp = spellOf(data.s); if (!sp) return; if (data.pw === 1) sp = Object.assign({}, sp, {dmg:sp.dmg*1.5}); if (fin(data.q) || fin(data.bm)) sp = Object.assign({}, sp, {dmg:sp.dmg*clamp(fin(data.q) ? data.q : 1, .5, 1.3)*clamp(fin(data.bm) ? data.bm : 1, 1, 1.5)}); if (fin(data.q) || fin(data.bm)) sp = Object.assign({}, sp, {dmg:sp.dmg*clamp(fin(data.q) ? data.q : 1, .5, 1.3)*clamp(fin(data.bm) ? data.bm : 1, 1, 1.5)});
   const o = data.o, d = data.d; if (!Array.isArray(o) || !Array.isArray(d) || ![...o, ...d].every(fin)) return;
   const cls = clsOf(data.s) || (others.get(caster) || {}).cls || me.cls, col = data.s === 'basic' ? '#f3ead2' : CL[cls] ? CL[cls].col : '#fff';
   const ov = new THREE.Vector3(o[0], o[1], o[2]), dv = new THREE.Vector3(d[0], d[1], d[2]).normalize(), el = ELEM(data.s, cls);
-  const fxd = {slow:sp.slow, dot:sp.dot, push:sp.push, el};
+  const fxd = {slow:sp.slow, dot:sp.dot, push:sp.push, el, cat:data.cat === 1, tg:data.tg === 1, dm:typeof data.dm === 'string' ? data.dm : null, basic:data.s === 'basic', sn:sp.n};
+  if (data.vx === 1 && isHost) fx.push({delay:.45, run:() => voidBurst(ov, dv, caster)});
   const myDist = Math.hypot(me.x - o[0], me.z - o[2]);
   if (!mine) { const oc = others.get(caster); if (oc && oc.g.userData.cast) oc.g.userData.cast(); }
   if (!mine && data.s !== 'basic') { if (!audios.has(caster)) shout(sp.n, cls, myDist, false); heard.n = sp.n; heard.t = now(); }
@@ -2776,7 +2958,7 @@ const WEAK = {
 const WEAK_SEEN = new Set();
 const weakMul = (type, el) => (WEAK[type] && el && WEAK[type][el]) || 1;
 function hurt(m, dmg, f, px, pz, by){
-  const wm = weakMul(m.type, f && f.el); dmg *= wm; dmg = bioDmg(m, dmg, f && f.el); dmg = bossDamage(m, dmg);
+  const wm = weakMul(m.type, f && f.el); dmg *= wm; dmg = bioDmg(m, dmg, f && f.el); dmg = rxHurt(m, dmg, f, by); dmg = rxHurt(m, dmg, f, by); dmg = bossDamage(m, dmg);
   if (dmg <= 0) { dmgNum(m.x, (m.gy || 0) + MT[m.type].h + .6, m.z, 0, false, 'res'); if ((by === me.peer || by === 'me') && T - (m.invMsg || -9) > 6) { m.invMsg = T; toast('Corps invulnérable : tranchez les trois têtes !'); } return; }
   if ((by === me.peer || by === 'me') && f && f.el && Math.abs(wm - 1) > .05) { const k = m.type + f.el; if (!WEAK_SEEN.has(k)) { WEAK_SEEN.add(k); toast(MT[m.type].n + (wm > 1 ? ' est faible contre ' : ' résiste à ') + ({fire:'le Feu', ice:'la Glace', storm:'la Foudre', spirit:"l'Esprit", shadow:"l'Ombre"})[f.el] + (wm > 1 ? ' !' : '')); } }
   m.hp -= dmg; m.flash = MT[m.type] && m.g && m.g.userData.noSquash ? .3 : .15; dmgNum(m.x, (m.gy || 0) + MT[m.type].h + .6, m.z, dmg, dmg >= 60, wm > 1.05 ? 'weak' : wm < .95 ? 'res' : ''); if (by === me.peer || by === 'me') hitmark();
@@ -2785,7 +2967,7 @@ function hurt(m, dmg, f, px, pz, by){
 }
 function killMon(m){
   if (!mons.has(m.id)) return; const t = MT[m.type];
-  mons.delete(m.id); deathFx(m); W.k++; bossOnKill(m); if (m.master != null) return;
+  mons.delete(m.id); deathFx(m); W.k++; rxDeath(m); bossOnKill(m); if (m.master != null) return; rxDeath(m); bossOnKill(m); if (m.master != null) return;
   const r = Math.random(), tp = m.type === 2 ? .12 : .035;
   if (t.boss) { addDrop('tome', m.x, m.z); if (Math.random() < .4) addDrop('tome', m.x + 1.6, m.z); addDrop('hp', m.x - 1.6, m.z + 1.6); addDrop('mp', m.x + 1.6, m.z + 1.6); addDrop('pw', m.x, m.z - 2); }
   else if (r < tp) addDrop('tome', m.x, m.z);
@@ -2801,7 +2983,7 @@ function heal(n){ me.hp = Math.min(100, me.hp + n); puff(me.x, me.y - 1.7 + 1, m
 let lastHurtBy = null;
 function takeDamage(d, by){
   if (!me.dead && playing) { shake = Math.min(1, shake + d/25); GRADE.uniforms.uHurt.value = Math.min(.8, GRADE.uniforms.uHurt.value + d/30); }
-  if (me.dead || !playing) return; me.hp -= d; me.hurtT = T; if (by) lastHurtBy = by;
+  if (me.dead || !playing) return; d = blDefend(d); me.hp -= d; me.hurtT = T; if (by) lastHurtBy = by;
   $('#hurt').style.opacity = 1; setTimeout(() => $('#hurt').style.opacity = 0, 180);
   if (me.hp <= 0) die();
 }
@@ -2818,8 +3000,9 @@ function grant(t){
   if (t === 'hp') { heal(45); toast('Potion de soin'); return; }
   if (t === 'mp') { me.mp = Math.min(me.maxMp, me.mp + 60); toast('Cristal de mana'); return; }
   if (t === 'pw') { me.pwT = 25; toast('Rune de puissance : dégâts ×1,5 pendant 25 s'); puff(me.x, me.y - 1.7 + 1, me.z, '#ff6a2a', 14, 4, .7, .8, 2); return; }
-  const ids = CL[me.cls].spells.map((_, i) => me.cls + ':' + i), rest = ids.filter(i => !known.includes(i)), next = rest.length ? rest[Math.floor(Math.random()*rest.length)] : null;
-  if (next) { known.push(next); pickInc(next); page = +next.split(':')[1]; renderBook(); bookFlash(); banner('Parchemin déchiffré', spellOf(next).n + ' rejoint votre grimoire · criez « ' + incOf(next) + ' »' + (calLeft(next) > 0 ? ' · vos 10 premières incantations l\'apprendront' : '')); }
+  const own = CL[me.cls].spells.map((_, i) => me.cls + ':' + i).filter(i => !known.includes(i)), other = known.filter(k => clsOf(k) !== me.cls).length >= 4 ? [] : Object.keys(CL).filter(c => c !== me.cls).flatMap(c => CL[c].spells.map((_, i) => c + ':' + i)).filter(i => !known.includes(i));
+  const pool = own.length && (Math.random() < .6 || !other.length) ? own : other, next = pool.length ? pool[Math.floor(Math.random()*pool.length)] : null;
+  if (next) { known.push(next); pickInc(next); pageId = next; if (clsOf(next) !== me.cls) toast('Un sort d\'une autre école : ' + (ELN[ELEM(next, clsOf(next))] || '') + '. Changez d\'école pour déclencher des réactions !'); renderBook(); bookFlash(); banner('Parchemin déchiffré', spellOf(next).n + ' rejoint votre grimoire · criez « ' + incOf(next) + ' »' + (calLeft(next) > 0 ? ' · vos 10 premières incantations l\'apprendront' : '')); }
   else { me.maxMp += 15; me.mp = me.maxMp; toast('Grimoire complet : mana max +15'); }
 }
 
@@ -2897,15 +3080,17 @@ function hostStep(dt){
     if (m.dotT > 0) { m.dotT -= dt; m.hp -= m.dotD*dt; if (m.hp <= 0) { killMon(m); continue; } }
     m.slowT = Math.max(0, m.slowT - dt); m.a = Math.max(0, m.a - dt);
     if (!tg) continue;
+    if (m.stunT > T || m.charmT > T) continue;
+    if (m.stunT > T || m.charmT > T) continue;
     const bm = (t.boss || t.head) ? bossStep(m, t, tg, bd, P, dt) : 0; if (bm === 'skip') continue;
     const sp = t.spd * .7 /* monstres ralentis de 30 % */ * (m.slowT > 0 ? .45 : 1);
     const sameLvl = t.boss || Math.abs(walkH(tg.x, tg.z) - walkH(m.x, m.z)) < 1.3;
     const rg = t.ranged, shoot = rg && bd < rg.max && bd > rg.min;
-    if (shoot) { m.rk = (m.rk ?? 1) - dt; if (m.rk <= 0) { m.rk = rg.cd; m.a = .5; const fl = bd/24; W.arrows.push({t:fl, peer:tg.peer, x:tg.x, z:tg.z, dmg:rg.dmg}); W.hits.push(['arrow', m.id, tg.peer]); arrowFx(m, tg.peer); } }
+    if (shoot) { m.rk = (m.rk ?? 1) - dt; if (m.rk <= 0) { m.rk = rg.cd; m.a = .5; const fl = bd/24; if (!(m.blindT > T && Math.random() < .5)) if (!(m.blindT > T && Math.random() < .5)) W.arrows.push({t:fl, peer:tg.peer, x:tg.x, z:tg.z, dmg:rg.dmg}); W.hits.push(['arrow', m.id, tg.peer]); arrowFx(m, tg.peer); } }
     else if (m.type === 4) { if (bm) { m.x += (tg.x-m.x)/bd*sp*dt*bm; m.z += (tg.z-m.z)/bd*sp*dt*bm; } }
     else if (bd > t.reach*.85 || !sameLvl) { const u = steerMon(m, tg, bd, t, dt); moveMon(m, u[0]*sp*dt, u[1]*sp*dt, t); }
     m.atk -= dt;
-    if (bd < t.reach && m.atk <= 0 && sameLvl) { m.atk = t.cd; m.a = .35; hitPlayer(tg.peer, t.dmg); }
+    if (bd < t.reach && m.atk <= 0 && sameLvl) { m.atk = t.cd; m.a = .35; if (!(m.blindT > T && Math.random() < .5)) hitPlayer(tg.peer, t.dmg); else puff(tg.x, 1.5, tg.z, '#e8eef2', 6, 2, .5, .5, 1); }
     if (t.boss && m.type !== 4) { m.sk -= dt; if (m.sk <= 0) { m.sk = 6; m.a = .6; for (const p of P) if (Math.hypot(p.x-m.x, p.z-m.z) < 8) hitPlayer(p.peer, 22); W.hits.push(['slam', m.id]); slamFx(m); } }
   }
   for (let i = W.arrows.length - 1; i >= 0; i--) { const ar = W.arrows[i]; ar.t -= dt; if (ar.t > 0) continue; W.arrows.splice(i, 1); const pl = P.find(p => p.peer === ar.peer); if (pl && Math.hypot(pl.x - ar.x, pl.z - ar.z) < 1.4) hitPlayer(ar.peer, ar.dmg); }
@@ -3206,6 +3391,12 @@ function guideHTML(){
   <li>Vous commencez avec un sort au hasard ; chaque <b>parchemin</b> en ajoute un autre au hasard.</li></ul>
   <h4>Survie</h4><ul><li><b>Healing</b> : criez « Healing » (ou touche H) — 30 mana → 22 PV, 8 s de recharge.</li><li>La vie remonte <b>très lentement</b> toute seule après 6 s sans dégâts. Le mana remonte lentement.</li>
   <li>Butin : croix d'émeraude +45 PV · cristaux de saphir +60 mana · parchemin = nouveau sort · rune de feu = dégâts ×1,5 pendant 25 s.</li><li>Les attaques de boss sont <b>annoncées au sol</b> (cercles et cônes rouges ou verts) : sortez-en !</li></ul>
+  <h4>Marques et réactions</h4><ul><li>Chaque sort marque sa cible 4 s (rond coloré au-dessus du monstre) : ${Object.entries(MK_N).map(([k, v]) => '<b style="color:' + ELC[k] + '">' + v + '</b>').join(', ')}. Un sort d'une <b>autre école</b> sur une cible marquée déclenche une réaction.</li>${Object.entries(RX_D).map(([k, d]) => '<li><b>' + RX[k] + '</b> (' + k.split('+').map(e => ELN[e]).join(' + ') + ') : ' + d + '</li>').join('')}<li>Les parchemins peuvent apporter des sorts d'autres écoles. Trois réactions secrètes demandent trois écoles en moins de 6 s.</li></ul>
+  <h4>Qualité de l'incantation</h4><ul><li><b>Nette</b> (+10 %) : reconnue du premier coup. <b>Parfaite</b> (+25 %, 3 mana rendus) : nette et dite dans les 2,5 s où le sort est prêt — la barre dorée sous la phrase montre cette fenêtre. Trois Parfaites d'affilée : <b>Flux</b>, −20 % de mana pendant 6 s.</li><li><b>Presque !</b> : une phrase approchante lance quand même le sort à 60 %. La tolérance de la voix se règle dans le menu Pause. Le volume ne compte jamais.</li></ul>
+  <h4>Autel des choix</h4><ul><li>Après chaque vague, choisissez une bénédiction parmi trois (touches 1, 2, 3, clic, ou « one », « two », « three »). L'autel favorise les familles déjà choisies : un style de jeu se dessine.</li><li>À la fin de la partie, la <b>chronique</b> résume vos exploits.</li></ul>
+  <h4>Marques et réactions</h4><ul><li>Chaque sort marque sa cible 4 s (rond coloré au-dessus du monstre) : ${Object.entries(MK_N).map(([k, v]) => '<b style="color:' + ELC[k] + '">' + v + '</b>').join(', ')}. Un sort d'une <b>autre école</b> sur une cible marquée déclenche une réaction.</li>${Object.entries(RX_D).map(([k, d]) => '<li><b>' + RX[k] + '</b> (' + k.split('+').map(e => ELN[e]).join(' + ') + ') : ' + d + '</li>').join('')}<li>Les parchemins peuvent apporter des sorts d'autres écoles. Trois réactions secrètes demandent trois écoles en moins de 6 s.</li></ul>
+  <h4>Qualité de l'incantation</h4><ul><li><b>Nette</b> (+10 %) : reconnue du premier coup. <b>Parfaite</b> (+25 %, 3 mana rendus) : nette et dite dans les 2,5 s où le sort est prêt — la barre dorée sous la phrase montre cette fenêtre. Trois Parfaites d'affilée : <b>Flux</b>, −20 % de mana pendant 6 s.</li><li><b>Presque !</b> : une phrase approchante lance quand même le sort à 60 %. La tolérance de la voix se règle dans le menu Pause. Le volume ne compte jamais.</li></ul>
+  <h4>Autel des choix</h4><ul><li>Après chaque vague, choisissez une bénédiction parmi trois (touches 1, 2, 3, clic, ou « one », « two », « three »). L'autel favorise les familles déjà choisies : un style de jeu se dessine.</li><li>À la fin de la partie, la <b>chronique</b> résume vos exploits.</li></ul>
   <h4>L'arène vivante</h4><ul><li>Après chaque gardien, l'arène se transforme : <b>volcanique</b> (vagues 6 à 10), <b>glaciale</b> (11 à 15), <b>corrompue</b> (16 à 18), <b>tempête</b> (19), <b>temple</b> (20). Chaque biome donne <b>+15 %</b> à son école.</li>${Object.values(BIO_INFO).filter(b => b.tip).map(b => '<li><b>' + b.n + '</b> — ' + b.tip + '</li>').join('')}<li>Ce que les gardiens détruisent (colonnes, arches, balustrade) reste détruit jusqu'à la fin de la partie ; les débris servent de couverts.</li></ul>
   <h4>Boss</h4><ul><li><b>Golem des Ruines</b> — lance des rochers sur un joueur au hasard (cercle rouge), trois à la fois sous 50 % de vie. Onde de choc au corps à corps.</li>
   <li><b>Liche Écarlate</b> — garde 4 serviteurs et ressuscite ceux qu'on abat (rayon vert). Tant que 3 vivent, son bouclier d'âmes réduit ses dégâts de 75 %. Orbes d'âme (cercle vert).</li>
@@ -3319,8 +3510,8 @@ ORGB[15] = (g, body) => archiModel(g, body, .75, true);
 const HEALING = {mana:30, hp:22, cd:8}; let healCd = 0;
 function castHealing(){ if (paused || storyFreeze || me.dead || !playing) return false; const n = now();
   if (n < healCd) { toast('Healing se recharge (' + Math.ceil(healCd - n) + ' s)'); return true; }
-  if (me.mp < HEALING.mana) { toast('Pas assez de mana pour Healing (' + HEALING.mana + ')'); return true; }
-  me.mp -= HEALING.mana; healCd = n + HEALING.cd; heal(HEALING.hp); staffKick = 1; burstT = .38; STAFF_COL.set('#5aff9c').multiplyScalar(1.6);
+  if (me.mp < healCost()) { toast('Pas assez de mana pour Healing (' + healCost() + ')'); return true; }
+  me.mp -= healCost(); healCd = n + HEALING.cd; heal(HEALING.hp); staffKick = 1; burstT = .38; STAFF_COL.set('#5aff9c').multiplyScalar(1.6);
   for (let i = 0; i < 18; i++) { const a = i/18*Math.PI*4; puff(me.x + Math.cos(a)*.8, .2 + i*.11, me.z + Math.sin(a)*.8, i % 2 ? '#7dff9c' : '#e8ffe0', 1, .3, .3, .9, 1.5); }
   flash(me.x, me.y - 1.7 + 1.5, me.z, '#5aff9c', 2.5, .4); sfx('cast', .4); toast('Healing : +' + HEALING.hp + ' PV'); return true; }
 function healCheck(text, final){ if (!text) return false; for (const x of norm(text).split(' ')) { if (!x) continue; const sc = Math.max(simil(x, 'healing'), simil(pho(x), pho('healing')) - .02, ['heal', 'heel', 'hill', 'soin', 'soigne', 'healing'].includes(x) ? 1 : 0);
@@ -3339,7 +3530,7 @@ function onWorld(msg){
   const ds = new Set();
   if (Array.isArray(D.d)) for (const t of D.d) { if (!Array.isArray(t)) continue; const [id, ty, x, z] = t; if (!fin(id) || !['tome','hp','mp','pw'].includes(ty) || !fin(x) || !fin(z)) continue; ds.add(id); if (!drops.has(id)) drops.set(id, {id, t:ty, x, z, age:0, g:dropMesh(ty)}); W.did = Math.max(W.did, id+1); }
   for (const [id, d] of drops) if (!ds.has(id)) { scene.remove(d.g); drops.delete(id); }
-  if (Array.isArray(D.h)) for (const h of D.h) { if (!Array.isArray(h)) continue; if (h[0] === me.peer && fin(h[1])) takeDamage(clamp(h[1], 0, 60), null); if (h[0] === 'slam') { const m = mons.get(h[1]); if (m) slamFx(m); } bossHit(h); if (h[0] === 'arrow') { const m = mons.get(h[1]); if (m && typeof h[2] === 'string') arrowFx(m, h[2]); } }
+  if (Array.isArray(D.h)) for (const h of D.h) { if (!Array.isArray(h)) continue; if (h[0] === me.peer && fin(h[1])) takeDamage(clamp(h[1], 0, 60), null); if (h[0] === 'slam') { const m = mons.get(h[1]); if (m) slamFx(m); } bossHit(h); bioHit(h); comHit(h); if (h[0] === 'arrow') { const m = mons.get(h[1]); if (m && typeof h[2] === 'string') arrowFx(m, h[2]); } }
 }
 function computeHost(){ if (!hostReady) return; if (!room) { isHost = true; hostPeer = me.peer; } }
 /* pause : solo = partie figée ; en ligne = déconnexion, avec reconnexion au même code */
@@ -3520,9 +3711,9 @@ addEventListener('keydown', e => {
   if (e.code === 'Enter') { e.preventDefault(); openChat(true); }
   if (e.code === 'KeyT') { e.preventDefault(); openChat(false); }
   if (e.code === 'Tab') { e.preventDefault(); renderScore(); $('#score').classList.remove('hidden'); }
-  if (/^Digit[1-7]$/.test(e.code)) { const cat = known.filter(k => k.startsWith(me.cls + ':')), pick = cat[+e.code.slice(5) - 1]; if (!pick) return; page = +pick.split(':')[1];
+  if (/^Digit[1-9]$/.test(e.code)) { const cat = known, pick = cat[+e.code.slice(5) - 1]; if (!pick) return; pageId = pick;
     /* correction en jeu : le dernier mot raté devient une prononciation de ce sort */
-    const id = me.cls + ':' + page;
+    const id = curSpell();
     if (lastFail && now() - lastFail.t < 5 && spellOf(id)) { if (addLearn(id, lastFail.x)) toast('« ' + lastFail.x.slice(0, 24) + ' » lancera désormais ' + spellOf(id).n); lastFail = null; if (known.includes(id)) tryCast(id); }
     renderBook(); }
   if (e.code === 'Space' && me.onG !== false && !me.dead) { me.vy = 7; me.onG = false; }
@@ -3541,23 +3732,24 @@ addEventListener('keydown', e => { if (e.code === 'Escape' && playing && !paused
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseNow(); });
 $('#preco').onclick = async () => { $('#preco').disabled = true; const ok = await netRejoin(); $('#preco').disabled = false; if (ok) $('#presume').onclick(); };
 $('#pguide').onclick = () => openGuide();
+{ const b = document.createElement('button'); b.id = 'ptol'; const lab = () => b.textContent = 'Tolérance de la voix : ' + ['Stricte', 'Normale', 'Souple'][TOL.v]; lab(); b.onclick = () => { TOL.v = (TOL.v + 1) % 3; try { localStorage.setItem('incantatio-tol', TOL.v); } catch (e) {} lab(); }; const g = $('#pguide'); if (g) g.parentNode.insertBefore(b, g.nextSibling); }
 $('#pquit').onclick = () => { netLeave(); location.href = location.pathname; };
 renderer.domElement.addEventListener('mousedown', e => {
   if (!playing) return;
   if (!locked()) { try { const r = renderer.domElement.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch (er) {} if (!recOn && micWanted) startMic(); return; }
-  if (e.button === 0 && !me.dead && (cds.basic || 0) < now()) { cds.basic = now() + BASIC.cd; castOut('basic'); }
+  if (e.button === 0 && !me.dead && !hasB('mains') && (cds.basic || 0) < now()) { cds.basic = now() + BASIC.cd; castOut('basic'); }
 });
 /* clic droit maintenu = « appuyer pour parler » : au relâchement, on lance le sort entendu même si le bruit empêche la phrase de se terminer */
 renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('mousedown', e => { if (!playing || e.button !== 2 || !locked()) return;
-  const id = me.cls + ':' + page;
+  const id = curSpell();
   if (!lastFail || now() - lastFail.t > 10) { toast('Aucun sort raté à enregistrer'); return; }
   if (lastFail.utt) { storeTpl(incOf(id), lastFail.utt.f); toast('Votre voix est retenue pour « ' + incOf(id) + ' »'); $('#bkhint').textContent = 'Retenu pour ' + spellOf(id).n + ' !'; bookFlash(); lastFail = null; if (known.includes(id)) tryCast(id); return; }
   if (addLearn(id, lastFail.x)) { toast('« ' + lastFail.x.slice(0, 24) + ' » lancera désormais ' + spellOf(id).n); $('#bkhint').textContent = 'Retenu pour ' + spellOf(id).n + ' !'; bookFlash(); }
   lastFail = null; });
 addEventListener('mousemove', e => { if (!locked()) return; me.yaw -= e.movementX*.0022; me.pitch = clamp(me.pitch - e.movementY*.0022, -1.45, 1.45); });
-addEventListener('wheel', e => { if (!playing || !e.deltaY) return; const cat = known.filter(k => k.startsWith(me.cls + ':')); if (!cat.length) return; const i = Math.max(0, cat.indexOf(me.cls + ':' + page)), n = (i + Math.sign(e.deltaY) + cat.length) % cat.length; page = +cat[n].split(':')[1]; renderBook(); }, {passive:true});
-$('#bklist').addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if (li) { page = +li.dataset.i; renderBook(); } });
+addEventListener('wheel', e => { if (!playing || !e.deltaY) return; const cat = known; if (!cat.length) return; const i = Math.max(0, cat.indexOf(curSpell())), n = (i + Math.sign(e.deltaY) + cat.length) % cat.length; pageId = cat[n]; renderBook(); }, {passive:true});
+$('#bklist').addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if (li) { pageId = known[+li.dataset.i] || pageId; renderBook(); } });
 
 /* ---------- start ---------- */
 async function begin(kind){
@@ -3571,7 +3763,7 @@ async function begin(kind){
   me.cls = pickCls; buildStaff(me.cls); me.name = ($('#nm').value.trim() || 'Sorcier').slice(0, 16); me.since = Date.now(); mode = pickMode;
   try { localStorage.setItem('incantatio', JSON.stringify({c:me.cls, n:me.name, l2:$('#lang').value, e2:$('#eng').value, v3:1})); } catch (e) {}
   document.documentElement.style.setProperty('--acc', CL[me.cls].col);
-  { const n = CL[me.cls].spells.length, i0 = Math.floor(Math.random()*n); known = [me.cls + ':' + i0]; page = i0; INC_SEL = {}; pickInc(known[0]); } renderBook();
+  { const n = CL[me.cls].spells.length, i0 = Math.floor(Math.random()*n); known = [me.cls + ':' + i0]; page = i0; pageId = known[0]; INC_SEL = {}; pickInc(known[0]); } renderBook();
   $('#menu').classList.add('hidden'); $('#hud').classList.remove('hidden');
   respawn(); me.deaths = 0; hostReady = false; isHost = false; room = null;
   {
@@ -3600,8 +3792,8 @@ $('#code').addEventListener('keydown', e => { if (e.key === 'Enter') begin('join
 const clock = new THREE.Clock(); let T = 0, mmT = 0; const QA = {auto:true, n:0, t:0}; let T_unused = 0, callT = 0, levelAn = null, wdT = 0; const lvBuf = new Uint8Array(512);
 function loop(){
   requestAnimationFrame(loop);
-  let dt = Math.min(clock.getDelta(), .05); if (paused || storyFreeze) dt = 0; T += dt; fragTick(dt); duelTick(dt);
-  WIND.value = T; SPU.uT.value = T % 1000; updateAtmosphere(dt); bioTick(dt); SKY_U.uT.value = T; if (gradePass) { GRADE.uniforms.uT.value = T % 100; GRADE.uniforms.uHurt.value *= Math.pow(.1, dt); } rune.rotation.z += dt*.1; rune.material.opacity = .6 + Math.sin(T*2)*.25;
+  let dt = Math.min(clock.getDelta(), .05); if (paused || storyFreeze) dt = 0; dt = timeScale(dt); T += dt; fragTick(dt); duelTick(dt);
+  WIND.value = T; SPU.uT.value = T % 1000; updateAtmosphere(dt); bioTick(dt); comTick(dt); comTick(dt); SKY_U.uT.value = T; if (gradePass) { GRADE.uniforms.uT.value = T % 100; GRADE.uniforms.uHurt.value *= Math.pow(.1, dt); } rune.rotation.z += dt*.1; rune.material.opacity = .6 + Math.sin(T*2)*.25;
   crystal.rotation.y += dt*.8; crystal.position.y = 4.56 + Math.sin(T*1.5)*.25; altarLight.intensity = 1.1 + Math.sin(T*3)*.15 + Math.random()*.08;
   if (Math.random() < .7) { const b = BRAZ[Math.floor(Math.random()*BRAZ.length)]; puff(b.x + (Math.random() - .5)*.5, b.y, b.z + (Math.random() - .5)*.5, Math.random() < .5 ? '#ff9a3a' : '#ffcf5a', 1, .5, b.small ? .25 : .5, .9, 2.4); }
   ALTAR.forEach(A => { A.RING_U.uT.value = T; A.r1.rotation.z = T*.35; A.r2.rotation.z = -T*.6; A.r2.rotation.y = Math.sin(T*.5)*.2; }); SIGIL.forEach(m => m.material.emissiveIntensity = .55 + Math.sin(T*1.7)*.25);
@@ -3630,7 +3822,7 @@ function loop(){
         const wh = walkH(me.x, me.z), gh = wh < 50 ? wh : feet; me.vy -= 20*dt; let ny = me.y + me.vy*dt;
         if (me.onG && me.vy <= 0 && feet - gh < .5) ny = gh + 1.7;
         if (ny <= gh + 1.7) { ny = gh + 1.7; me.vy = 0; me.onG = true; } else me.onG = false; me.y = ny; }
-      me.mp = Math.min(me.maxMp, me.mp + 1.5*dt); if (me.pwT > 0) me.pwT -= dt; /* régénération de vie très lente, seulement après 6 s sans dégâts */ if (!me.dead && T - (me.hurtT ?? -99) > 6) me.hp = Math.min(100, me.hp + .2*dt); if (!me.dead && T - (me.hurtT ?? -99) > 6) me.hp = Math.min(100, me.hp + .2*dt);
+      me.mp = Math.min(me.maxMp, me.mp + 1.5*dt); if (me.pwT > 0) me.pwT -= dt; /* régénération de vie très lente, seulement après 6 s sans dégâts */ if (!me.dead && T - (me.hurtT ?? -99) > 6) me.hp = Math.min(100, me.hp + .2*dt*(hasB('sang') ? 3 : 1)); if (!me.dead && T - (me.hurtT ?? -99) > 6) me.hp = Math.min(100, me.hp + .2*dt*(hasB('sang') ? 3 : 1));
       for (const [id, d] of drops) if (Math.hypot(d.x-me.x, d.z-me.z) < 1.8) { if (isHost) takeDrop(id, me.peer); else if (room && (pending[id] || 0) < now()) { pending[id] = now() + 1; room.emit('pick', {id}).catch(()=>{}); } }
     }
     camera.position.set(me.x, me.dead ? me.y + 1.5 : me.y + (me.dead ? 0 : Math.sin(T*9)*.03*(keys.KeyW ? 1 : 0)), me.z);
@@ -3656,7 +3848,7 @@ function loop(){
     const g = m.g, dx = m.x - g.position.x, dz = m.z - g.position.z, spd = Math.hypot(dx, dz)/Math.max(dt, .001);
     if (Math.abs(dx) + Math.abs(dz) > .001) { const ry = Math.atan2(dx, dz); let d2 = ry - g.rotation.y; d2 = Math.atan2(Math.sin(d2), Math.cos(d2)); g.rotation.y += d2*Math.min(1, dt*10); }
     if (MT[m.type].head) { const ry = Math.atan2(me.x - m.x, me.z - m.z); let d2 = ry - g.rotation.y; d2 = Math.atan2(Math.sin(d2), Math.cos(d2)); g.rotation.y += d2*Math.min(1, dt*4); }
-    { const gy = groundH(m.x, m.z); m.gy = (m.gy === undefined || gy >= m.gy) ? gy : Math.max(gy, m.gy - dt*9); } g.position.set(m.x, m.gy, m.z);
+    { const gy = groundH(m.x, m.z); m.gy = (m.gy === undefined || gy >= m.gy) ? gy : Math.max(gy, m.gy - dt*9); } g.position.set(m.x, m.gy, m.z); rxMarkVis(m); rxMarkVis(m);
     m.mv = (m.mv || 0) + (clamp(spd/MT[m.type].spd, 0, 1) - (m.mv || 0))*Math.min(1, dt*6);
     if (!isHost && m.a > 0) m.a -= dt;
     g.userData.anim(T + m.id*1.7, m.mv, clamp((m.a || 0)/.35, 0, 1), clamp((m.flash || 0)/.15, 0, 1));
