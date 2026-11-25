@@ -2072,7 +2072,7 @@ function wavesQuality(id, Q){ if (hasPact('murmure') && !Q.perfect) Q.q *= .6; }
 /* ---- résurrection incantée : « Rise » près de l'âme d'un allié ---- */
 function riseTarget(){ if (me.dead || !room) return null; for (const [p, o] of others) if (o.dead && Math.hypot(o.g.position.x - me.x, o.g.position.z - me.z) < 3.5) return p; return null; }
 const riseNear = () => !!riseTarget();
-const GAME_VER = 'v2.0.7 · 25/11 12:50';
+const GAME_VER = 'v2.0.8 · 25/11 13:00';
 { const v = document.createElement('div'); v.id = 'gamever'; v.textContent = 'Incantatio Arena ' + GAME_VER; v.style.cssText = 'position:fixed;right:8px;bottom:4px;font:12px Georgia,serif;color:#f3e6c8;opacity:.55;z-index:70;pointer-events:none'; document.body.appendChild(v); }
 function riseStart(){ const p = riseTarget(); if (!p) return false; WV.rise = {peer:p, t:3}; toast('Résurrection : restez près de son âme 3 s'); return true; }
 function riseVoice(n){ if (!/\b(rise|rice|rize|raise|rais)\b/.test(n)) return false; return riseStart(); }
@@ -2244,12 +2244,13 @@ const GRAND = {
   meteor:{n:'Météore', el:'fire', steps:['Meteor Call', 'Fall'], d:'Un météore géant au point visé (220 dégâts, rayon 8 m)'},
   blizzard:{n:'Blizzard', el:'ice', steps:['Winter Comes', 'Freeze', 'Shatter'], d:'Une tempête de glace gèle la zone, puis la brise (260 dégâts)'},
   ames:{n:'Chant des âmes', el:'spirit', steps:['Hear Me', 'Rise Again', 'Souls', 'Unite'], d:'Quatre phrases : l\'arène entière est balayée (300 dégâts) et les sorciers soignés'} };
-const GI = {id:'', step:0, t:0, x:0, z:0, ring:null};
-function grandLearn(k){ RUN.grand = (RUN.grand || []).concat(k); archAdd('grand', k); banner('Grande incantation : ' + GRAND[k].n, '« ' + GRAND[k].steps.join(' » … « ') + ' » · ' + GRAND[k].d); }
+const GI = {id:'', step:0, t:0, x:0, z:0, ring:null, cd:{}, rdy:{}};
+const giReady = k => (GI.cd[k] || 0) <= now() && me.mp >= 50;
+function grandLearn(k){ RUN.grand = (RUN.grand || []).concat(k); GI.rdy[k] = true; archAdd('grand', k); banner('Grande incantation : ' + GRAND[k].n, '« ' + GRAND[k].steps.join(' » … « ') + ' » · ' + GRAND[k].d); }
 function grandVoice(text){ if (!playing || me.dead || !RUN.grand || !RUN.grand.length) return false;
   if (GI.id) { const S = GRAND[GI.id]; if (phraseScore(text, S.steps[GI.step]) >= .78) { GI.step++; GI.t = now() + 4; qPop(GI.step + '/' + S.steps.length, '#ffd86a'); if (GI.ring) GI.ring.scale.setScalar(1 + GI.step*.6);
-      if (GI.step >= S.steps.length) { const d = {gi:GI.id, x:r2(GI.x), z:r2(GI.z)}; grandApply(d, me.peer, true); if (room) room.emit('cast', d).catch(() => {}); grandEnd(); } else toast('Puis : « ' + S.steps[GI.step] + ' »'); return true; } }
-  for (const k of RUN.grand) { const S = GRAND[k]; if (phraseScore(text, S.steps[0]) < .78) continue; if (me.mp < 50) { toast('Il faut 50 mana pour une grande incantation'); return true; } me.mp -= 50;
+      if (GI.step >= S.steps.length) { const d = {gi:GI.id, x:r2(GI.x), z:r2(GI.z)}; GI.cd[GI.id] = now() + 25; GI.rdy[GI.id] = false; grandApply(d, me.peer, true); if (room) room.emit('cast', d).catch(() => {}); grandEnd(); } else toast('Puis : « ' + S.steps[GI.step] + ' »'); return true; } }
+  for (const k of RUN.grand) { const S = GRAND[k]; if (phraseScore(text, S.steps[0]) < .78) continue; if ((GI.cd[k] || 0) > now()) { toast(S.n + ' se recharge (' + Math.ceil(GI.cd[k] - now()) + ' s)'); return true; } if (me.mp < 50) { toast('Il faut 50 mana pour une grande incantation'); return true; } me.mp -= 50;
     const d = aimDir(), o = camera.position; let t = d.y < -.02 ? -o.y/d.y : 30; t = Math.min(t, 34); GI.id = k; GI.step = 1; GI.t = now() + 4; GI.x = o.x + d.x*t; GI.z = o.z + d.z*t;
     if (GI.ring) scene.remove(GI.ring); GI.ring = new THREE.Mesh(geo('giRing', () => new THREE.RingGeometry(3.6, 4, 64).rotateX(-Math.PI/2)), new THREE.MeshBasicMaterial({color:new THREE.Color(ELC[S.el] || '#ffd86a'), transparent:true, opacity:.8, blending:THREE.AdditiveBlending, depthWrite:false})); GI.ring.position.set(GI.x, groundH(GI.x, GI.z) + .15, GI.z); scene.add(GI.ring);
     toast(S.n + ' : dites « ' + S.steps[1] + ' » dans les 4 s'); return true; } return false; }
@@ -2257,7 +2258,7 @@ function grandVoice(text){ if (!playing || me.dead || !RUN.grand || !RUN.grand.l
 /* panneau des grandes incantations et des phrases secrètes, au-dessus du grimoire */
 function giHud(){ let el = $('#gihud'); if (!el) { el = document.createElement('div'); el.id = 'gihud'; el.className = 'hud'; el.style.cssText = 'position:fixed;right:16px;bottom:calc(36vh + 18px);max-width:330px;padding:7px 11px;border-radius:9px;background:#120e0ae0;border:1px solid #8a6a3a;color:#f3e6c8;font:13.5px Georgia,serif;line-height:1.4;z-index:12;pointer-events:none;text-shadow:0 1px 2px #000'; document.body.appendChild(el); }
   const G = (RUN.grand || []), S = META.secrets || []; if (!playing || (!G.length && !S.length)) { el.style.display = 'none'; return; } el.style.display = 'block'; let h = '';
-  for (const k of G) { const D = GRAND[k], cur = GI.id === k; h += '<div><b style="color:#ffd86a">' + D.n + '</b> : ' + D.steps.map((x, i) => '<span style="' + (cur && i < GI.step ? 'color:#7dff9c' : cur && i === GI.step ? 'color:#ffd86a;text-decoration:underline' : 'opacity:.8') + '">« ' + esc(x) + ' »</span>').join(' → ') + (cur ? ' <i style="color:#ffb86a">(' + Math.max(0, Math.ceil(GI.t - now())) + ' s)</i>' : '') + '</div>'; }
+  for (const k of G) { const D = GRAND[k], cur = GI.id === k, ok = giReady(k), cd = (GI.cd[k] || 0) - now(); if (ok && GI.rdy[k] === false && playing && !me.dead) { banner('Grande incantation disponible', D.n + ' : dites « ' + D.steps[0] + ' »'); sfxChime(); } GI.rdy[k] = ok; h += '<div><b style="color:#ffd86a">' + D.n + '</b> ' + (cur ? '<span style="color:#ffd86a">en cours</span>' : ok ? '<span style="color:#7dff9c">● disponible</span>' : cd > 0 ? '<span style="color:#ff9a6a">recharge ' + Math.ceil(cd) + ' s</span>' : '<span style="color:#ff9a6a">mana ' + Math.floor(me.mp) + '/50</span>') + ' : ' + D.steps.map((x, i) => '<span style="' + (cur && i < GI.step ? 'color:#7dff9c' : cur && i === GI.step ? 'color:#ffd86a;text-decoration:underline' : 'opacity:.8') + '">« ' + esc(x) + ' »</span>').join(' → ') + (cur ? ' <i style="color:#ffb86a">(' + Math.max(0, Math.ceil(GI.t - now())) + ' s)</i>' : '') + '</div>'; }
   if (S.length) h += '<div style="margin-top:3px"><b style="color:#c8a8ff">Secrets</b> : ' + S.map(k => { const cd = (SCD[k] || 0) - now(); return '<span style="' + (cd > 0 ? 'opacity:.45' : '') + '">« ' + esc(SECRETS[k].p) + ' »' + (cd > 0 ? ' ' + Math.ceil(cd) + ' s' : '') + '</span>'; }).join(' · ') + '</div>';
   if (el.innerHTML !== h) el.innerHTML = h; }
 setInterval(() => { try { giHud(); } catch (e) {} }, 250);
