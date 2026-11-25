@@ -1515,8 +1515,8 @@ function choicePick(i){ const c = CHOICE.cur; if (!CHOICE.open || !c || !c.items
 function learnSpell(next){ known.push(next); pickInc(next); pageId = next; secretsSync(); archAdd('spells', next); renderBook(); bookFlash(); banner('Parchemin déchiffré', spellOf(next).n + ' rejoint votre grimoire · criez « ' + incOf(next) + ' »' + (calLeft(next) > 0 ? ' · vos 10 premières incantations l\'apprendront' : '')); }
 function tomeChoice(){ const items = [], others = known.filter(k => clsOf(k) !== me.cls).length, nOff = META.rooms.bib2 ? 4 : 3, sch = c => ELN[ELEM(c + ':0', c)] || c;
   const own = CL[me.cls].spells.map((_, i) => me.cls + ':' + i).filter(i => !known.includes(i)).sort(() => Math.random() - .5);
-  const oth = others >= 4 ? [] : Object.keys(CL).filter(c => c !== me.cls).flatMap(c => CL[c].spells.map((_, i) => c + ':' + i)).filter(i => !known.includes(i) && spellOf(i).mana < 40).sort(() => Math.random() - .5);
-  const rare = Object.keys(CL).flatMap(c => CL[c].spells.map((_, i) => c + ':' + i)).filter(i => !known.includes(i) && spellOf(i).mana >= 40).sort(() => Math.random() - .5);
+  const oth = others >= 4 ? [] : Object.keys(CL).filter(c => c !== me.cls && !CL[c].own).flatMap(c => CL[c].spells.map((_, i) => c + ':' + i)).filter(i => !known.includes(i) && spellOf(i).mana < 40).sort(() => Math.random() - .5);
+  const rare = Object.keys(CL).filter(c => !CL[c].own || c === me.cls).flatMap(c => CL[c].spells.map((_, i) => c + ':' + i)).filter(i => !known.includes(i) && spellOf(i).mana >= 40).sort(() => Math.random() - .5);
   const ups = known.filter(k => k !== 'basic' && rankOf(k) < rankMax()).sort(() => Math.random() - .5);
   if (own[0]) items.push({n:spellOf(own[0]).n, f:'Nouveau sort · ' + sch(clsOf(own[0])), d:'« ' + (INCV[own[0]] || [spellOf(own[0]).n])[0] + ' » · ' + spellOf(own[0]).mana + ' mana', act:() => learnSpell(own[0])});
   if (oth[0]) items.push({n:spellOf(oth[0]).n, f:'Autre école · ' + sch(clsOf(oth[0])), r:2, d:'Une nouvelle école : de quoi déclencher des réactions', act:() => learnSpell(oth[0])});
@@ -1604,7 +1604,7 @@ function bossPhase(m, t, tg, P, dt){ wavesBoss(m, t, tg, P, dt); if (m.type !== 
 /* l'hôte applique aussi ses propres messages */
 function bossHitLocal(){ const h = W.hits[W.hits.length - 1]; if (h) progHit(h); }
 const BAN = {el:'', t:0}, STEAL = {id:'', until:0, phrase:''};
-function progHit(h){ wavesHit(h); v20Hit(h); gpHit(h); const t = h[0];
+function progHit(h){ wavesHit(h); v20Hit(h); gpHit(h); allyHit(h); const t = h[0];
   if (t === 'bword' && typeof h[2] === 'string' && BW.until < now()) bossWord(h[1], h[2], clamp(+h[3] || 6, 2, 10), h[1] === 3 ? 'Des runes s\'allument sur le Golem' : 'Brèche');
   else if (t === 'ban' && ELN[h[1]]) { BAN.el = h[1]; BAN.t = now() + clamp(+h[2] || 10, 2, 15); banner('Mot interdit', 'L\'école ' + ELN[h[1]] + ' est bannie ' + Math.round(BAN.t - now()) + ' s'); }
   else if (t === 'steal' && STEAL.until < now()) { const id = curSpell(); if (!known.includes(id)) return; STEAL.id = id; STEAL.phrase = incOf(id); STEAL.until = now() + clamp(+h[2] || 5, 2, 8); BW.word = STEAL.phrase; BW.until = STEAL.until; BW.boss = 4; banner('La Liche vole « ' + STEAL.phrase + ' »', 'Dites-la avant elle !'); }
@@ -1627,7 +1627,7 @@ function progQuality(id, Q){ if (id === 'basic') return; const el = ELEM(id, cls
   if (QL.secret === id) { QL.secret = null; Q.q *= 1.2; qPop('Phrase secrète !', '#ffd86a'); } }
 function progKill(by, boss, type){ if (by !== me.peer && by !== 'me') return; resoAdd(3); if (hasPact('faim')) heal(1); if (hasPact('horde')) hordeKill(); v20Kill(by); gpKill(); if (hasPact('faim')) heal(1); if (hasPact('horde')) hordeKill(); if (fin(type)) { META.arch.mons[type] = (META.arch.mons[type] || 0) + 1; metaSave(); } }
 function progStill(dt){ const k = me.x + ',' + me.z; if (k === RUN.lastPos) RUN.still = (RUN.still || 0) + dt; else RUN.still = 0; RUN.lastPos = k; }
-function progDefend(d){ if (hasPact('sang')) d *= 1.4; d = specDefend(d); d = gpDefend(d); if (hasR('pierre') && RUN.still > 2) d *= .6; if (hasB('epines')) resoAdd(d*.4); if (me.hp - d <= 0 && hasR('phenix') && !RUN.phx) { RUN.phx = 1; d = Math.max(0, me.hp - 1); setTimeout(() => { me.hp = 60; banner('Plume du Phénix', 'Vous renaissez de vos cendres'); flash(me.x, me.y, me.z, '#ff9a3a', 9, .8); puff(me.x, me.y - 1, me.z, '#ffb84a', 40, 6, 1.2, 1, 3); }, 50); } return d; }
+function progDefend(d){ if (hasPact('sang')) d *= 1.4; d = specDefend(d); d = gpDefend(d); d = allyDefend(d); if (hasR('pierre') && RUN.still > 2) d *= .6; if (hasB('epines')) resoAdd(d*.4); if (me.hp - d <= 0 && hasR('phenix') && !RUN.phx) { RUN.phx = 1; d = Math.max(0, me.hp - 1); setTimeout(() => { me.hp = 60; banner('Plume du Phénix', 'Vous renaissez de vos cendres'); flash(me.x, me.y, me.z, '#ff9a3a', 9, .8); puff(me.x, me.y - 1, me.z, '#ffb84a', 40, 6, 1.2, 1, 3); }, 50); } return d; }
 function progTick(dt){ const st = W.st;
   if ((playing && !RUN.was) || (RUN.prevSt === 'over' && st !== 'over')) { Object.assign(RUN, {souls:0, phx:0, relics:[], rank:{}, tomeQ:0, orient:null, pacts:[], pactW:[], seal:null, hk:0, chaosK:null, specs:[], specAsked:0, spec2:0, spx:0, grand:[], ctrWon:0}); RESO.v = 0; RESO.awT = 0; RESO.ready = false; BAN.t = 0; BW.word = ''; STEAL.id = ''; CHOICE.q.length = 0; for (const id of known) if (id !== 'basic') archAdd('spells', id);
     if (META.rooms.forge1 && META.arch.relics.length) relicOffer('Forge des reliques : relique de départ', RELICS.filter(r => META.arch.relics.includes(r.id)), 3);
@@ -1869,7 +1869,7 @@ function wavesTarget(m, t, tg, bd, P){ const F = m.F; m.tgPeer = tg && tg.peer;
   if (F && F.has('hunter') && P.length > 1) { let lo = null, lh = 1e9; for (const p of P) { const hp = p.peer === me.peer || p.peer === 'me' ? me.hp : ((others.get(p.peer) || {}).hp ?? 100); if (hp < lh) { lh = hp; lo = p; } } if (lo) return {tg:lo, bd:Math.hypot(lo.x - m.x, lo.z - m.z)}; }
   if (F && F.has('hungry')) { const c = nearCorpse(m.x, m.z, 12); if (c) return {tg:{peer:'#corpse', x:c.x, z:c.z}, bd:Math.hypot(c.x - m.x, c.z - m.z)}; }
   if (WV.siege && WV.cry > 0 && !t.prop && !t.boss && (!tg || bd > 6)) { const r = Math.hypot(m.x, m.z) || 1, x = m.x/r*3.4, z = m.z/r*3.4; return {tg:{peer:'cristal', x, z}, bd:Math.hypot(x - m.x, z - m.z)}; }
-  return gpTarget(m, t, tg, bd); }
+  return allyTarget(m, t, tg, bd) || gpTarget(m, t, tg, bd); }
 function wavesBite(m){ if (m.F && m.F.has('spectre')) reveal(m, 1); }
 function reveal(m, s){ W.hits.push(['rev', m.id, s]); WV.rev[m.id] = T + s; }
 function fleeMove(m, tg, sp, dt, t){ let ux = m.x - tg.x, uz = m.z - tg.z; const d = Math.hypot(ux, uz) || 1; ux /= d; uz /= d; const r = Math.hypot(m.x, m.z);
@@ -2057,7 +2057,7 @@ function pactOffer(){ const pool = Object.keys(PACTS).filter(k => !hasPact(k) &&
 function pactTake(k){ RUN.pacts = (RUN.pacts || []).concat(k); banner(PACTS[k].n, PACTS[k].m + ' · ' + PACTS[k].r); flash(me.x, me.y, me.z, '#a01a3a', 6, .6);
   if (k === 'silence') { const els = [...new Set(known.filter(i => i !== 'basic').map(i => ELEM(i, clsOf(i))))], cnt = e => known.filter(i => ELEM(i, clsOf(i)) === e).length; els.sort((a, b) => cnt(b) - cnt(a)); RUN.seal = pick(els.slice(1)); toast('École scellée : ' + ELN[RUN.seal]); }
   if (k === 'oubli') { const ks = known.filter(i => i !== 'basic'), lost = pick(ks); known.splice(known.indexOf(lost), 1); pageId = known[0]; page = 0; renderBook(); toast('Le grimoire oublie ' + spellOf(lost).n);
-    const rare = Object.keys(CL).flatMap(c => CL[c].spells.map((_, i) => c + ':' + i)).filter(i => !known.includes(i) && spellOf(i).mana >= 40).sort(() => Math.random() - .5).slice(0, 3);
+    const rare = Object.keys(CL).filter(c => !CL[c].own || c === me.cls).flatMap(c => CL[c].spells.map((_, i) => c + ':' + i)).filter(i => !known.includes(i) && spellOf(i).mana >= 40).sort(() => Math.random() - .5).slice(0, 3);
     if (rare.length) choiceAsk('Pacte de l\'oubli : un sort rare', rare.map(i => ({n:spellOf(i).n, f:'Sort rare · ' + ELN[ELEM(i, clsOf(i))], r:3, d:spellOf(i).mana + ' mana', act:() => learnSpell(i)})), b => b.act()); } }
 function hordeKill(){ RUN.hk = (RUN.hk || 0) + 1; if (RUN.hk % 10) return; const b = pick(BLESS.filter(x => x.r === 1 && !BL.has(x.id))); if (b) { BL.add(b.id); banner('Pacte de la horde', 'Petite bénédiction : ' + b.n); } }
 
@@ -2076,7 +2076,7 @@ function wavesQuality(id, Q){ if (hasPact('murmure') && !Q.perfect) Q.q *= .6; }
 /* ---- résurrection incantée : « Rise » près de l'âme d'un allié ---- */
 function riseTarget(){ if (me.dead || !room) return null; for (const [p, o] of others) if (o.dead && Math.hypot(o.g.position.x - me.x, o.g.position.z - me.z) < 3.5) return p; return null; }
 const riseNear = () => !!riseTarget();
-const GAME_VER = 'v2.4.3 · 25/11 15:35';
+const GAME_VER = 'v2.5 · 25/11 Invocateur';
 { const v = document.createElement('div'); v.id = 'gamever'; v.textContent = 'Incantatio Arena ' + GAME_VER; v.style.cssText = 'position:fixed;right:8px;bottom:4px;font:12px Georgia,serif;color:#f3e6c8;opacity:.55;z-index:70;pointer-events:none'; document.body.appendChild(v); }
 function riseStart(){ const p = riseTarget(); if (!p) return false; WV.rise = {peer:p, t:3}; toast('Résurrection : restez près de son âme 3 s'); return true; }
 function riseVoice(n){ if (!/\b(rise|rice|rize|raise|rais)\b/.test(n)) return false; return riseStart(); }
@@ -2490,7 +2490,7 @@ function tutoTick(dt){ const el = $('#tuto'); if (!el) return; if (META.tuto || 
   el.style.display = 'block'; const h = '<b>Didacticiel ' + (GP.tuto + 1) + '/' + TUTO.length + '</b> ' + esc(TUTO[GP.tuto]) + '<small>P : passer le didacticiel</small>'; if (el.innerHTML !== h) el.innerHTML = h; }
 
 /* ---- tick ---- */
-function gpTick(dt){ dashTick(dt); threatTick(); tutoTick(dt); gpHost(dt);
+function gpTick(dt){ allyTick(dt); dashTick(dt); threatTick(); tutoTick(dt); gpHost(dt);
   if (playing && !GP.started) { GP.started = true; if (GP.arch === 'sage') me.maxMp = 130; else if (GP.arch === 'guerre') me.maxMp = 80; else me.maxMp = 100; me.mp = Math.min(me.mp, me.maxMp); }
   if (playing && GP.arch === 'sage' && !me.dead) me.mp = Math.min(me.maxMp, me.mp + .6*dt);
   const dg = $('#dodgeui'); if (dg) { dg.style.display = playing ? 'block' : 'none'; const r = Math.max(0, GP.dodgeCd - T); dg.textContent = r > 0 ? 'Esquive ' + r.toFixed(1) + ' s' : 'Esquive prête (Shift)'; dg.classList.toggle('ready', r <= 0); } }
@@ -2505,6 +2505,145 @@ function gpTick(dt){ dashTick(dt); threatTick(); tutoTick(dt); gpHost(dt);
   const row = $('#gfx') && $('#gfx').closest('.row'); if (row) { const mk = (lab, id, opts, val, key) => { const l = document.createElement('label'); l.className = 'field'; l.innerHTML = lab + '<select id="' + id + '">' + opts.map(([v, t]) => '<option value="' + v + '"' + (String(v) === String(val) ? ' selected' : '') + '>' + t + '</option>').join('') + '</select>'; row.appendChild(l); l.querySelector('select').onchange = e => { try { localStorage.setItem(key, e.target.value); } catch (er) {} if (id === 'gpdiff') GP.diff = +e.target.value; else { GP.arch = e.target.value; toast(ARCHS[GP.arch].n + ' : ' + ARCHS[GP.arch].d); } }; };
     mk('Difficulté', 'gpdiff', DIFFS.map((d, i) => [i, d.n + (i === 0 ? ' (monstres −25 % de vie, −30 % de dégâts)' : i === 2 ? ' (+30 % de vie, +25 % de dégâts)' : '')]), GP.diff, 'incantatio-diff');
     mk('Archétype', 'gparch', Object.entries(ARCHS).map(([k, A]) => [k, A.n + ' : ' + A.d]), GP.arch, 'incantatio-arch'); } }
+/* ===================== INVOCATEUR : le Gardien spirituel (golem allié) ===================== */
+CL.summon = {name:'Invocateur', col:'#8fd8ff', pitch:1.05, own:1, desc:'Un golem d\'esprit vous suit et combat. Vos sorts le renforcent.', spells:[
+  {n:'Rise Guardian', k:'sum', act:'rise', dmg:0, mana:18, cd:6},
+  {n:'Stone Skin', k:'sum', act:'skin', dmg:0, mana:22, cd:14},
+  {n:'Fury Bond', k:'sum', act:'fury', dmg:0, mana:26, cd:16},
+  {n:'Earthbreaker', k:'sum', act:'smash', dmg:70, r:5.5, mana:30, cd:8},
+  {n:'Soul Link', k:'sum', act:'link', dmg:0, mana:20, cd:22},
+  {n:'Titan Form', k:'sum', act:'titan', dmg:0, mana:60, cd:45}]};
+GLYPH.summon = '<path d="M30 30h40v22H30z M24 54h52v30H24z" fill="none" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/><circle cx="41" cy="41" r="4" fill="currentColor"/><circle cx="59" cy="41" r="4" fill="currentColor"/><path d="M14 58v20M86 58v20" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>';
+RANK_D.sum = ['', 'effet du sort +30 %', 'durée +50 %'];
+const SUM_INC = {'summon:0':['Rise Guardian', 'Awaken Guardian', 'Stone Heart', 'Golem Rise'], 'summon:1':['Stone Skin', 'Granite Shell', 'Iron Bark', 'Rock Armor'], 'summon:2':['Fury Bond', 'Wild Fury', 'Blood Bond', 'Rage Link'],
+  'summon:3':['Earthbreaker', 'Ground Slam', 'Quake Fist', 'Shatter Earth'], 'summon:4':['Soul Link', 'Bound Souls', 'Spirit Tether', 'Twin Hearts'], 'summon:5':['Titan Form', 'Colossus', 'Giant Wake', 'Mountain King']};
+const SUM_D = {rise:'Rappelle le Gardien près de vous et lui rend toute sa vie (ou le ressuscite)', skin:'Gardien : −50 % de dégâts subis 8 s, il attire les monstres', fury:'Gardien : +60 % de dégâts et de vitesse 10 s',
+  smash:'Le Gardien bondit au point visé : dégâts de zone et étourdissement', link:'15 s : le Gardien encaisse 40 % des dégâts que vous subissez', titan:'Le Gardien grandit de 50 % pendant 20 s : coups en zone, +50 % de dégâts'};
+const ALLIES = new Map(); let allyId = 1; const AL = {link:0, setup:0, ui:null, hp:-1};
+/* --- serveur (hôte) --- */
+function allyOwners(){ const a = []; if (playing && me.cls === 'summon') a.push({peer:me.peer || 'me', x:me.x, z:me.z}); for (const [p, o] of others) if (o.cls === 'summon') a.push({peer:p, x:o.tx, z:o.tz}); return a; }
+const allyOf = peer => { const k = peer || 'me', mine = k === 'me' || k === me.peer; for (const a of ALLIES.values()) if (a.owner === k || (mine && (a.owner === 'me' || a.owner === me.peer))) return a; return null; };
+const allyWk = () => 1 + .1*Math.max(0, W.w - 1);
+function allyNew(o){ const mx = Math.round(380*allyWk()); const a = {id:allyId++, kind:'golem', owner:o.peer, x:o.x + 2, z:o.z + 2, y:0, hp:mx, max:mx, yaw:0, a:0, atk:0, skinT:0, furyT:0, titanT:0, linkT:0, focus:-1, deadT:0, wk:allyWk(), mv:0}; ALLIES.set(a.id, a); return a; }
+function allyMsg(owner, t){ if (owner === me.peer || owner === 'me') toast(t); else W.hits.push(['amsg', owner, t]); }
+function allyHost(dt){ const O = allyOwners();
+  for (const a of [...ALLIES.values()]) if (!O.some(o => o.peer === a.owner)) ALLIES.delete(a.id);
+  for (const o of O) if (!allyOf(o.peer)) allyNew(o);
+  for (const a of ALLIES.values()) { const o = O.find(q => q.peer === a.owner); if (!o) continue;
+    if (allyWk() !== a.wk) { const k = allyWk()/a.wk; a.max = Math.round(a.max*k); a.hp = Math.min(a.max, a.hp*k); a.wk = allyWk(); }
+    a.a = Math.max(0, a.a - dt); a.mv = 0;
+    if (a.deadT) { if (T >= a.deadT) { a.deadT = 0; a.hp = a.max; a.x = o.x + 2; a.z = o.z + 2; W.hits.push(['arise', a.id]); allyRiseFx(a.x, a.z); allyMsg(a.owner, 'Votre Gardien se relève !'); } continue; }
+    if (a.sm) { const S = a.sm; S.t += dt; const k = Math.min(1, S.t/.7); a.x = S.x0 + (S.x - S.x0)*k; a.z = S.z0 + (S.z - S.z0)*k; a.y = Math.sin(Math.PI*k)*4.5; a.yaw = Math.atan2(S.x - S.x0, S.z - S.z0);
+      if (k >= 1) { a.sm = null; a.y = 0; const R = S.r*(a.titanT > T ? 1.3 : 1); for (const m of [...mons.values()]) { const d = Math.hypot(m.x - a.x, m.z - a.z); if (d < R + MT[m.type].r) { hurt(m, S.dmg, {el:'spirit', sn:'Earthbreaker', push:2.5}, (m.x - a.x)/(d || 1), (m.z - a.z)/(d || 1), a.owner); if (mons.has(m.id)) m.stunT = T + (MT[m.type].boss || MT[m.type].head ? .5 : 1.6); } }
+        W.hits.push(['gslam', r2(a.x), r2(a.z), r2(R)]); allySlamFx(a.x, a.z, R); } continue; }
+    const near = [...mons.values()].some(m => Math.hypot(m.x - a.x, m.z - a.z) < 10); if (!near) a.hp = Math.min(a.max, a.hp + a.max*.03*dt);
+    let tg = a.focus >= 0 ? mons.get(a.focus) : null; if (tg && (Math.hypot(tg.x - o.x, tg.z - o.z) > 32 || MT[tg.type].prop)) tg = null; if (!tg) a.focus = -1;
+    if (!tg) { let bd = 1e9; for (const m of mons.values()) { if (m.charmT > T || MT[m.type].phyl) continue; const d = Math.hypot(m.x - a.x, m.z - a.z), dOw = Math.hypot(m.x - o.x, m.z - o.z); if ((d < 14 || dOw < 12) && d + (m.a > 0 ? -4 : 0) < bd) { bd = d + (m.a > 0 ? -4 : 0); tg = m; } } }
+    const fury = a.furyT > T, titan = a.titanT > T, spd = 5.2*(fury ? 1.5 : 1)*(titan ? 1.15 : 1);
+    if (tg) { const dx = tg.x - a.x, dz = tg.z - a.z, d = Math.hypot(dx, dz) || 1, reach = 2.2 + MT[tg.type].r + (titan ? 1 : 0); a.yaw = Math.atan2(dx, dz);
+      if (d > reach) { if (moveMon(a, dx/d*spd*dt, dz/d*spd*dt, {})) a.mv = 1; }
+      else { a.atk -= dt; if (a.atk <= 0) { a.atk = 1.3/(fury ? 1.4 : 1); a.a = .5; const dmg = 26*allyWk()*(fury ? 1.6 : 1)*(titan ? 1.5 : 1), f = {el:'spirit', sn:'Gardien', push:titan ? 3 : 1.2};
+          if (titan) { for (const m of [...mons.values()]) { const dd = Math.hypot(m.x - tg.x, m.z - tg.z); if (dd < 3.5 + MT[m.type].r) hurt(m, m === tg ? dmg : dmg*.6, f, (m.x - a.x)/(Math.hypot(m.x - a.x, m.z - a.z) || 1), (m.z - a.z)/(Math.hypot(m.x - a.x, m.z - a.z) || 1), a.owner); } }
+          else hurt(tg, dmg, f, dx/d, dz/d, a.owner);
+          W.hits.push(['gpunch', a.id, r2(tg.x), r2(tg.z), titan ? 1 : 0]); allyPunchFx(a, tg.x, tg.z, titan); } } }
+    else { const bx = o.x + 2.2, bz = o.z + 2.2, dx = bx - a.x, dz = bz - a.z, d = Math.hypot(dx, dz);
+      if (d > 30) { a.x = bx; a.z = bz; } else if (d > 2.5) { a.yaw = Math.atan2(dx, dz); if (moveMon(a, dx/d*spd*Math.min(1.4, d/4)*dt, dz/d*spd*Math.min(1.4, d/4)*dt, {})) a.mv = 1; } }
+    collide(a, 1.1, 60); } }
+function allyHurt(id, dmg){ const a = ALLIES.get(id); if (!a || a.deadT || a.sm) return; if (a.skinT > T) dmg *= .5; a.hp -= dmg; a.hitT = T;
+  if (a.hp <= 0) { a.hp = 0; a.deadT = T + 20; W.hits.push(['adie', a.id]); allyDieFx(a.x, a.z); allyMsg(a.owner, 'Votre Gardien est tombé : il revient dans 20 s (ou dites Rise Guardian)'); } }
+/* les monstres s'en prennent aussi au Gardien */
+function allyTarget(m, t, tg, bd){ if (!ALLIES.size || m.charmT > T || t.head || t.prop) return null; let best = null, bb = 1e9;
+  for (const a of ALLIES.values()) { if (a.deadT || a.sm) continue; const d = Math.hypot(a.x - m.x, a.z - m.z), taunt = a.skinT > T && d < 11;
+    if (!taunt && (t.boss || t.ranged)) continue; if ((taunt || (d < 9 && d < bd*.9)) && d < bb) { bb = d; best = a; } }
+  return best ? {tg:{peer:'#a' + best.id, x:best.x, z:best.z}, bd:bb} : null; }
+/* --- sorts --- */
+function allyFocus(data, caster){ if (isHost && fin(data.gf)) { const a = allyOf(caster); if (a && mons.has(data.gf)) a.focus = data.gf; } }
+function allyOut(id, data){ if (id === 'basic' && me.cls === 'summon') { data.sb = 1; const t = chainTargets(new THREE.Vector3(data.o[0], data.o[1], data.o[2]), new THREE.Vector3(data.d[0], data.d[1], data.d[2]), 1)[0]; if (typeof t === 'number') data.gf = t; } }
+function allyCast(data, caster, mine, sp){ const act = sp.act, rk = fin(data.rk) ? data.rk : 1, pot = rk >= 2 ? 1.3 : 1, dur = rk >= 3 ? 1.5 : 1, a = allyOf(caster);
+  if (mine && act === 'link') AL.link = T + 15*dur;
+  if (mine && act !== 'rise' && (!a || a.deadT)) { toast('Votre Gardien est à terre : dites « ' + incOf('summon:0') + ' »'); }
+  if (!isHost) return; const ck = caster || 'me', o = allyOwners().find(q => q.peer === ck || (ck === me.peer && q.peer === 'me')) || {peer:ck, x:data.o[0], z:data.o[2]}; let g = a || allyNew(o);
+  if (act === 'rise') { if (g.deadT) { g.deadT = 0; g.hp = g.max; } else g.hp = Math.min(g.max, g.hp + g.max*pot); g.sm = null; g.y = 0; if (Math.hypot(g.x - o.x, g.z - o.z) > 5) { g.x = o.x + 2; g.z = o.z + 2; } W.hits.push(['arise', g.id]); allyRiseFx(g.x, g.z); return; }
+  if (g.deadT) return;
+  if (act === 'skin') g.skinT = T + 8*dur*pot; else if (act === 'fury') g.furyT = T + 10*dur; else if (act === 'link') g.linkT = T + 15*dur; else if (act === 'titan') g.titanT = T + 20*dur;
+  else if (act === 'smash') { const t = Array.isArray(data.t) && data.t.every(fin) ? data.t : [g.x, g.z + 6]; let tx = t[0], tz = t[1]; const dd = Math.hypot(tx - g.x, tz - g.z); if (dd > 26) { tx = g.x + (tx - g.x)/dd*26; tz = g.z + (tz - g.z)/dd*26; } if (walkH(tx, tz) > 50) { tx = g.x; tz = g.z; }
+    g.sm = {x0:g.x, z0:g.z, x:tx, z:tz, t:0, r:sp.r || 5.5, dmg:(sp.dmg || 70)*allyWk()*pot}; W.hits.push(['gjump', g.id, r2(tx), r2(tz)]); allyJumpFx(tx, tz, sp.r || 5.5); }
+  W.hits.push(['abuff', g.id, act]); allyBuffFx(g, act); }
+/* le lien d'âme : 40 % des dégâts passent au Gardien */
+function allyDefend(d){ if (d <= 0 || !(AL.link > T)) return d; const a = allyOf(me.peer || 'me'); if (!a || a.deadT) return d; if (isHost) allyHurt(a.id, d*.4); return d*.6; }
+function allyHitPlayer(peer, dmg){ if (typeof peer === 'string' && peer.startsWith('#a')) { allyHurt(+peer.slice(2), dmg); return true; } const a = allyOf(peer); if (a && a.linkT > T && !a.deadT && peer !== me.peer && peer !== 'me') allyHurt(a.id, dmg*.4); return false; }
+/* --- réseau --- */
+function allyPack(){ return [...ALLIES.values()].map(a => [a.id, a.owner, r2(a.x), r2(a.z), r2(a.y), Math.round(a.hp), Math.round(a.max), (a.deadT ? 1 : 0) | (a.skinT > T ? 2 : 0) | (a.furyT > T ? 4 : 0) | (a.titanT > T ? 8 : 0) | (a.linkT > T ? 16 : 0) | (a.mv ? 32 : 0), r2(a.yaw), a.a > 0 ? 1 : 0]); }
+function allyRecv(L){ if (!Array.isArray(L)) return; const seen = new Set();
+  for (const t of L) { if (!Array.isArray(t) || !fin(t[0]) || !fin(t[2]) || !fin(t[3])) continue; const [id, owner, x, z, y, hp, mx, fl, yaw, at] = t; seen.add(id); let a = ALLIES.get(id);
+    if (!a) { a = {id, kind:'golem', x, z, y:0}; ALLIES.set(id, a); } Object.assign(a, {owner:String(owner), tx:x, tz:z, ty:fin(y) ? y : 0, hp:fin(hp) ? hp : 0, max:fin(mx) ? mx : 1, fl:fin(fl) ? fl : 0, tyaw:fin(yaw) ? yaw : 0}); if (at && !(a.a > 0)) a.a = .5; }
+  for (const [id, a] of ALLIES) if (!seen.has(id)) { if (a.g) scene.remove(a.g); ALLIES.delete(id); } }
+function allyHit(h){ const t = h[0];
+  if (t === 'gpunch') { const a = ALLIES.get(h[1]); if (a && fin(h[2])) { a.a = .5; allyPunchFx(a, h[2], h[3], h[4] === 1); } }
+  else if (t === 'gslam' && fin(h[1])) allySlamFx(h[1], h[2], h[3]); else if (t === 'gjump' && fin(h[2])) allyJumpFx(h[2], h[3], 5.5);
+  else if (t === 'arise') { const a = ALLIES.get(h[1]); if (a) allyRiseFx(a.tx ?? a.x, a.tz ?? a.z); } else if (t === 'adie') { const a = ALLIES.get(h[1]); if (a) allyDieFx(a.x, a.z); }
+  else if (t === 'abuff') { const a = ALLIES.get(h[1]); if (a) allyBuffFx(a, h[2]); } else if (t === 'amsg' && h[1] === me.peer && typeof h[2] === 'string') toast(h[2].slice(0, 120)); }
+/* --- effets --- */
+function allyPunchFx(a, x, z, big){ const y = groundH(x, z); puff(x, y + 1.2, z, '#9fe8ff', big ? 22 : 12, big ? 9 : 6, .6, .45, 1); puff(x, y + .3, z, '#8a8070', 8, 4, .5, .6, 1); if (big) shockwave(x, y + .2, z, 3.5, '#9fe8ff', .5); sfx('boom', clamp(1 - Math.hypot(me.x - x, me.z - z)/50, .05, .5)); }
+function allySlamFx(x, z, r){ const y = groundH(x, z); shockwave(x, y + .2, z, r*1.15, '#9fe8ff', .8); ringFx(x, z, r, '#8fd8ff', .7, 'spirit'); decal(x, z, r*.8, 'scorch', 5); puff(x, y + .5, z, '#8a7a60', 40, 10, 1, .9, 2); flash(x, y + 2, z, '#9fe8ff', 6, .4); const dm = Math.hypot(me.x - x, me.z - z); if (dm < 25) shake = Math.max(shake, .35*(1 - dm/25)); sfx('boom', clamp(1 - dm/50, .1, 1)); }
+function allyJumpFx(x, z, r){ const segs = [], wm = new THREE.MeshBasicMaterial({color:0x8fd8ff, transparent:true, opacity:.5, depthWrite:false, blending:THREE.AdditiveBlending, fog:false}), m = new THREE.Mesh(geo('agRing', () => new THREE.RingGeometry(.92, 1, 48).rotateX(-Math.PI/2)), wm); m.scale.setScalar(r); m.position.set(x, groundH(x, z) + .15, z); scene.add(m);
+  fx.push({t:0, dur:.75, upd:k => { wm.opacity = .25 + .5*Math.abs(Math.sin(k*20)); }, end:() => { scene.remove(m); wm.dispose(); }}); }
+function allyRiseFx(x, z){ const y = groundH(x, z); puff(x, y + 1, z, '#9fe8ff', 40, 5, 1, 1, 3); shockwave(x, y + .2, z, 4, '#9fe8ff', .7); flash(x, y + 3, z, '#9fe8ff', 6, .6); }
+function allyDieFx(x, z){ const y = groundH(x, z); puff(x, y + 1.5, z, '#8a8070', 40, 7, 1, 1, 1); puff(x, y + 2, z, '#9fe8ff', 30, 4, .8, 1.2, 3); sfx('boom', .4); }
+function allyBuffFx(a, act){ const col = act === 'skin' ? '#e8c88a' : act === 'fury' ? '#ff6a3a' : act === 'titan' ? '#ffe08a' : act === 'link' ? '#c8a8ff' : '#9fe8ff', x = a.tx ?? a.x, z = a.tz ?? a.z; puff(x, groundH(x, z) + 2, z, col, 26, 5, .8, .8, 2); flash(x, groundH(x, z) + 2.5, z, col, 5, .4); }
+/* --- le modèle du Gardien --- */
+function golemMesh(){ const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+  const stone = bmat('boss_golem', 1, 1, {c:0x8fa6bc, ns:1.6, rim:.35}), dark = bmat('boss_golem', 1.4, 1.4, {c:0x46525e, ns:1.8}); stone.envMapIntensity = dark.envMapIntensity = .5;
+  const glow = new THREE.MeshBasicMaterial({color:0x8fe8ff}), M = (gm, mt, x, y, z, p) => { const m = new THREE.Mesh(gm, mt); m.position.set(x, y, z); m.castShadow = true; (p || body).add(m); return m; };
+  const torso = M(new THREE.DodecahedronGeometry(1, 0), stone, 0, 2.7, 0); torso.scale.set(1.35, 1.15, .95);
+  const belly = M(new THREE.DodecahedronGeometry(.8, 0), dark, 0, 1.75, 0); belly.scale.set(1.2, .8, .9);
+  M(new THREE.OctahedronGeometry(.34, 0), glow, 0, 2.8, .86).scale.set(1, 1.3, .6);
+  for (const [x, y] of [[-.5, 3.1], [.55, 2.35], [-.2, 2.1]]) M(new THREE.BoxGeometry(.5, .06, .06), glow, x, y, .9).rotation.z = Math.random() - .5;
+  const head = new THREE.Group(); head.position.set(0, 3.85, .25); body.add(head); M(new THREE.BoxGeometry(.85, .7, .8), stone, 0, 0, 0, head).rotation.set(.08, 0, 0); M(new THREE.BoxGeometry(.95, .18, .3), dark, 0, .2, .35, head);
+  const eyes = [M(new THREE.BoxGeometry(.18, .08, .05), glow, -.2, .03, .42, head), M(new THREE.BoxGeometry(.18, .08, .05), glow, .2, .03, .42, head)];
+  const arm = s => { const sh = new THREE.Group(); sh.position.set(1.45*s, 3.2, 0); body.add(sh); M(new THREE.DodecahedronGeometry(.62, 0), stone, 0, 0, 0, sh).scale.set(1, .9, 1);
+    M(new THREE.CylinderGeometry(.3, .26, 1.1, 6), dark, 0, -.75, 0, sh); const fo = new THREE.Group(); fo.position.set(0, -1.3, 0); sh.add(fo); M(new THREE.CylinderGeometry(.42, .34, 1, 6), stone, 0, -.5, 0, fo);
+    M(new THREE.TorusGeometry(.4, .05, 6, 16), glow, 0, -.35, 0, fo).rotation.x = Math.PI/2; const fist = M(new THREE.DodecahedronGeometry(.58, 0), stone, 0, -1.25, .05, fo); fist.scale.set(1.1, 1, 1.1); return {sh, fo}; };
+  const L = arm(-1), R = arm(1);
+  const leg = s => { const p = new THREE.Group(); p.position.set(.62*s, 1.45, 0); body.add(p); M(new THREE.CylinderGeometry(.42, .34, 1.2, 6), stone, 0, -.6, 0, p); M(new THREE.BoxGeometry(.75, .35, 1), dark, 0, -1.3, .12, p); return p; };
+  const LL = leg(-1), LR = leg(1);
+  const rocks = []; for (let i = 0; i < 3; i++) rocks.push(M(new THREE.DodecahedronGeometry(.22, 0), stone, 0, 0, 0, g));
+  const aura = new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex, color:0x6fd8ff, transparent:true, opacity:.07, depthWrite:false, blending:THREE.AdditiveBlending})); aura.position.y = 2.6; aura.scale.setScalar(5); g.add(aura);
+  const bar = new THREE.Group(); bar.position.y = 4.9; g.add(bar); const bb = new THREE.Mesh(new THREE.PlaneGeometry(1.8, .16), new THREE.MeshBasicMaterial({color:0, transparent:true, opacity:.6, depthWrite:false})), bf = new THREE.Mesh(new THREE.PlaneGeometry(1.8, .16), new THREE.MeshBasicMaterial({color:0x6fe8ff, depthWrite:false})); bf.position.z = .01; bar.add(bb, bf);
+  const lk = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 1, 0)]), new THREE.LineBasicMaterial({color:0xc8a8ff, transparent:true, opacity:.8, blending:THREE.AdditiveBlending})); lk.frustumCulled = false; lk.visible = false; scene.add(lk);
+  g.userData = {body, L, R, LL, LR, eyes, glow, stone, aura, rocks, bar, bf, lk, ph:0, sc:1};
+  return g; }
+/* --- rendu, interface --- */
+function allyTick(dt){
+  if (!AL.setup) { AL.setup = 1; allySetup(); }
+  if (!playing) { if (ALLIES.size) { for (const a of ALLIES.values()) if (a.g) { scene.remove(a.g); scene.remove(a.g.userData.lk); } ALLIES.clear(); } allyUI(); return; }
+  if (isHost && !(paused && !room)) allyHost(dt);
+  for (const a of ALLIES.values()) { if (!a.g) { a.g = golemMesh(); scene.add(a.g); } const U = a.g.userData;
+    if (!isHost) { if (a.tx != null) { const k = Math.min(1, dt*10); if (Math.hypot(a.tx - a.x, a.tz - a.z) > 12) { a.x = a.tx; a.z = a.tz; } a.x += (a.tx - a.x)*k; a.z += (a.tz - a.z)*k; a.y += ((a.ty || 0) - a.y)*Math.min(1, dt*14); let dy = (a.tyaw || 0) - (a.yaw || 0); dy = Math.atan2(Math.sin(dy), Math.cos(dy)); a.yaw = (a.yaw || 0) + dy*Math.min(1, dt*8); } a.a = Math.max(0, (a.a || 0) - dt); }
+    const fl = isHost ? (a.deadT ? 1 : 0) | (a.skinT > T ? 2 : 0) | (a.furyT > T ? 4 : 0) | (a.titanT > T ? 8 : 0) | (a.linkT > T ? 16 : 0) | (a.mv ? 32 : 0) : (a.fl || 0);
+    const dead = fl & 1; a.g.visible = !dead; U.lk.visible = false; if (dead) continue;
+    const sc = fl & 8 ? 1.5 : 1; U.sc += (sc - U.sc)*Math.min(1, dt*3); a.g.scale.setScalar(U.sc); a.g.position.set(a.x, groundH(a.x, a.z) + (a.y || 0), a.z); a.g.rotation.y = a.yaw || 0;
+    const moving = fl & 32 || (!isHost && a.tx != null && Math.hypot(a.tx - a.x, a.tz - a.z) > .05); U.ph += dt*(moving ? 7 : 0); const sw = moving ? Math.sin(U.ph) : 0, at = a.a > 0 ? Math.sin((1 - a.a/.5)*Math.PI) : 0;
+    U.LL.rotation.x = sw*.5; U.LR.rotation.x = -sw*.5; U.L.sh.rotation.x = -sw*.35 - at*.4; U.R.sh.rotation.x = sw*.35 - at*2.3; U.R.fo.rotation.x = -at*.6; U.body.position.y = moving ? Math.abs(Math.cos(U.ph))*.08 : Math.sin(T*1.5)*.03; U.body.rotation.x = at*.18;
+    const gc = fl & 4 ? 0xff5a2a : fl & 2 ? 0xffd27a : fl & 16 ? 0xc8a8ff : 0x8fe8ff; U.glow.color.setHex(gc); U.aura.material.color.setHex(gc); U.aura.material.opacity = .06 + (fl & 14 ? .06 : 0) + Math.sin(T*3)*.02; U.stone.color.setHex(fl & 2 ? 0xd8c090 : 0x8fa6bc);
+    U.rocks.forEach((r, i) => { const an = T*1.3 + i*2.1; r.position.set(Math.cos(an)*1.9, 2.6 + Math.sin(T*2 + i)*.4, Math.sin(an)*1.9); r.rotation.set(T + i, T*.7, 0); });
+    U.bar.quaternion.copy(camera.quaternion); U.bar.quaternion.premultiply(a.g.quaternion.clone().invert()); const hk = clamp(a.hp/(a.max || 1), 0, 1); U.bf.scale.x = hk || .001; U.bf.position.x = -.9*(1 - hk); U.bf.material.color.setHex(hk < .3 ? 0xff6a4a : 0x6fe8ff);
+    if (fl & 16) { const op = a.owner === me.peer || a.owner === 'me' ? {x:me.x, y:me.y - .6, z:me.z} : (() => { const o = others.get(a.owner); return o ? {x:o.g.position.x, y:o.g.position.y + 1.2, z:o.g.position.z} : null; })();
+      if (op) { const p = U.lk.geometry.attributes.position; p.setXYZ(0, a.x, a.g.position.y + 2.8*U.sc, a.z); p.setXYZ(1, op.x, op.y, op.z); p.needsUpdate = true; U.lk.visible = true; U.lk.material.opacity = .5 + Math.sin(T*8)*.3; } } }
+  allyUI(); }
+function allyUI(){ let e = AL.ui; if (!e) { e = AL.ui = document.createElement('div'); e.id = 'allyui'; document.body.appendChild(e); }
+  const a = playing && me.cls === 'summon' ? allyOf(me.peer || 'me') : null; if (!a) { e.style.display = 'none'; return; } e.style.display = 'block';
+  const fl = isHost ? (a.deadT ? 1 : 0) | (a.skinT > T ? 2 : 0) | (a.furyT > T ? 4 : 0) | (a.titanT > T ? 8 : 0) | (a.linkT > T ? 16 : 0) : (a.fl || 0), k = clamp(a.hp/(a.max || 1), 0, 1);
+  const tags = [fl & 2 ? 'Peau de pierre' : '', fl & 4 ? 'Furie' : '', fl & 8 ? 'Titan' : '', fl & 16 || AL.link > T ? 'Lien d\'âme' : ''].filter(Boolean).join(' · ');
+  const h = '<b>Gardien</b>' + (fl & 1 ? '<i>à terre' + (isHost && a.deadT ? ' · retour dans ' + Math.ceil(a.deadT - T) + ' s' : '') + '</i>' : '<span><s style="width:' + (k*100).toFixed(0) + '%;background:' + (k < .3 ? '#ff6a4a' : '#6fe8ff') + '"></s></span><em>' + Math.round(a.hp) + ' / ' + Math.round(a.max) + '</em>') + (tags ? '<small>' + tags + '</small>' : '');
+  if (e.innerHTML !== h) e.innerHTML = h; }
+function allySetup(){
+  const st = document.createElement('style'); st.textContent = '#allyui{position:fixed;left:16px;bottom:122px;width:260px;font:13px Georgia,serif;color:#dff6ff;z-index:12;pointer-events:none;display:none;text-shadow:0 1px 2px #000} #allyui b{font-family:Cinzel,serif;color:#8fe8ff;margin-right:6px} #allyui span{display:inline-block;vertical-align:middle;width:150px;height:9px;border:1px solid #8fe8ff88;border-radius:5px;background:#0008;overflow:hidden;margin-right:6px} #allyui s{display:block;height:100%;text-decoration:none} #allyui em{font-style:normal;font-size:11px;opacity:.8} #allyui i{opacity:.8} #allyui small{display:block;font-size:11px;color:#ffe8b0}'; document.head.appendChild(st);
+  Object.assign(INCV, SUM_INC); if (typeof WZ_STYLE !== 'undefined') WZ_STYLE.summon = {hat:0, trim:0x9fd8e8, pad:0x24404a}; }
+/* la classe apparaît dans le menu (le menu est construit avant ce module) */
+setTimeout(() => { try { const s = JSON.parse(localStorage.getItem('incantatio') || '{}'); if (CL[s.c]) pickCls = s.c; } catch (e) {}
+  $('#classes').innerHTML = Object.entries(CL).map(([k, c]) => `<button class="cls" data-c="${k}" style="--c:${c.col}" aria-pressed="${k === pickCls}" title="${esc(c.desc || '')}">${glyph(k)}<b>${c.name}</b><small>${c.spells.length} sorts · départ : ${c.spells[0].n}${c.desc ? '<br>' + esc(c.desc) : ''}</small></button>`).join('');
+  if (!AL.setup) { AL.setup = 1; allySetup(); } }, 0);
 /* ===================== ARÈNE VIVANTE : biomes, transformations, dangers, destruction ===================== */
 /* Le biome se déduit de la vague (identique chez tous les joueurs, sans message réseau) ; la transformation dure 12 s pendant la pause entre deux vagues.
    Les dangers d'arène visent le joueur local (chacun voit les siens) ; les effets des sorts sur l'arène sont décidés par l'hôte. */
@@ -3264,7 +3403,7 @@ float snoise(vec3 v){ const vec2 C=vec2(1./6.,1./3.); const vec4 D=vec4(0.,.5,1.
  vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w); vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3))); p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
  vec4 m=max(.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.); m=m*m; return 42.*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3))); }
 `;
-const ELEM = (sid, cls) => sid === 'basic' ? 'arcane' : ({fire:'fire', storm:'storm', ice:'ice', spirit:'spirit', shadow:'shadow'})[cls] || 'arcane';
+const ELEM = (sid, cls) => sid === 'basic' ? 'arcane' : ({fire:'fire', storm:'storm', ice:'ice', spirit:'spirit', shadow:'shadow', summon:'spirit'})[cls] || 'arcane';
 const ADD = {transparent:true, depthWrite:false, blending:THREE.AdditiveBlending};
 const VS_FR = `varying vec3 vN; varying vec3 vV; varying vec3 vP; void main(){ vP = position; vec4 mv = modelViewMatrix*vec4(position,1.); vN = normalize(normalMatrix*normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix*mv; }`;
 /* FEU : plasma en fusion, sommets déformés par le bruit, cœur blanc incandescent */
@@ -4001,7 +4140,7 @@ function renderBook(){
   setTimeout(() => { const bm = $('#bkmeta'); bm.textContent = bm.textContent.replace(/ · apprentissage vocal \d+\/\d+/g, '') + (has && calLeft(id) > 0 ? ' · apprentissage vocal ' + (CAL_N - calLeft(id)) + '/' + CAL_N : ''); }, 0);
   $('#bkname').textContent = has ? incOf(id) : 'Page scellée';
   $('#bkhint').textContent = has ? (incOf(id) !== sp.n ? 'Sort : ' + sp.n + ' · criez « ' + incOf(id) + ' »' : 'Criez : « ' + sp.n + ' »') : 'Trouvez un parchemin pour la déchiffrer';
-  $('#bkmeta').textContent = has ? `${sp.mana} mana · ${sp.cd}s · ${({bolt:'projectile',nova:'onde autour de vous',rain:'pluie au sol visé',wave:'vague frontale',chain:'arc en chaîne'})[sp.k]}` : '';
+  $('#bkmeta').textContent = has ? `${sp.mana} mana · ${sp.cd}s · ${({bolt:'projectile',nova:'onde autour de vous',rain:'pluie au sol visé',wave:'vague frontale',chain:'arc en chaîne',sum:(SUM_D[sp.act] || 'Gardien')})[sp.k]}` : '';
   const cat = known, sealed = ids.filter(i => !known.includes(i)).length;
   $('#bklist').innerHTML = cat.map((sid, n) => { const sc = clsOf(sid); return `<li class="${sid === id ? 'cur' : ''}" data-i="${n}"><s data-cd="${sid}"></s><span>${n + 1}. ${esc(incOf(sid))}${rankOf(sid) > 1 ? ' <i class="sch">' + RN[rankOf(sid)] + '</i>' : ''}${sc !== me.cls ? ' <i class="sch">· ' + (ELN[ELEM(sid, sc)] || '') + '</i>' : ''}</span><em>${manaCost(spellOf(sid))}</em></li>`; }).join('') + (sealed ? `<li class="lock"><span>~ ${sealed} page${sealed > 1 ? 's' : ''} scellée${sealed > 1 ? 's' : ''} ~</span></li>` : '');
   $('#bklist').insertAdjacentHTML('beforeend', '<li class="heal" title="Échange du mana contre de la vie"><span>✚ Healing (H)</span><em>' + healCost() + '</em></li>'); bookScroll();
@@ -4077,9 +4216,9 @@ function castOut(id){
   staffKick = 1; staffCastFx(id);
   const sp = spellOf(id), d = aimDir(), o = camera.position.clone().addScaledVector(d, .9); o.y -= .3;
   const data = {s:id, o:[r2(o.x), r2(o.y), r2(o.z)], d:[r2(d.x), r2(d.y), r2(d.z)], sd:Math.floor(Math.random()*1e6)}; if (me.pwT > 0) data.pw = 1;
-  if (sp.k === 'rain') { let t = d.y < -.02 ? -camera.position.y/d.y : 40; t = Math.min(t, 34); data.t = [r2(camera.position.x + d.x*t), r2(camera.position.z + d.z*t)]; }
+  if (sp.k === 'rain' || sp.act === 'smash') { let t = d.y < -.02 ? -camera.position.y/d.y : 40; t = Math.min(t, 34); data.t = [r2(camera.position.x + d.x*t), r2(camera.position.z + d.z*t)]; }
   if (sp.k === 'chain') data.ids = chainTargets(o, d, sp.j + (hasB('chaine') ? 2 : 0) + (rankOf(id) >= 2 ? 2 : 0));
-  castExtras(id, data); castExtras2(id, data);
+  castExtras(id, data); castExtras2(id, data); allyOut(id, data);
   applyCast(data, me.peer, true);
   if (room) room.emit('cast', data).catch(()=>{});
 }
@@ -4098,7 +4237,7 @@ function applyCast(data, caster, mine){
   if (data.gich) { if (!mine && GRAND[data.gich]) grandAura(caster, data.gich, clamp(+data.st || 1, 1, 4), data.f === 1); return; } if (data.sec) { secretApply(data, caster, mine); return; } if (data.gi) { grandApply(data, caster, mine); return; }
   let sp = spellOf(data.s); if (!sp) return; if (data.pw === 1) sp = Object.assign({}, sp, {dmg:sp.dmg*1.5}); if (fin(data.q) || fin(data.bm)) sp = Object.assign({}, sp, {dmg:sp.dmg*clamp(fin(data.q) ? data.q : 1, .5, 1.3)*clamp(fin(data.bm) ? data.bm : 1, .5, 4)}); sp = specMods(data, castMods(data, sp)); if (fin(data.q) || fin(data.bm)) sp = Object.assign({}, sp, {dmg:sp.dmg*clamp(fin(data.q) ? data.q : 1, .5, 1.3)*clamp(fin(data.bm) ? data.bm : 1, .5, 4)}); sp = gpMods(data, specMods(data, castMods(data, sp)));
   const o = data.o, d = data.d; if (!Array.isArray(o) || !Array.isArray(d) || ![...o, ...d].every(fin)) return;
-  const cls = clsOf(data.s) || (others.get(caster) || {}).cls || me.cls, col = data.gold === 1 ? '#ffe08a' : data.s === 'basic' ? '#f3ead2' : CL[cls] ? CL[cls].col : '#fff';
+  const cls = clsOf(data.s) || (others.get(caster) || {}).cls || me.cls, col = data.gold === 1 ? '#ffe08a' : data.s === 'basic' ? (data.sb === 1 ? '#8fd8ff' : '#f3ead2') : CL[cls] ? CL[cls].col : '#fff';
   const ov = new THREE.Vector3(o[0], o[1], o[2]), dv = new THREE.Vector3(d[0], d[1], d[2]).normalize(), el = ELEM(data.s, cls);
   const fxd = {slow:sp.slow, dot:sp.dot, push:sp.push, el, cat:data.cat === 1, tg:data.tg === 1, dm:typeof data.dm === 'string' ? data.dm : null, basic:data.s === 'basic', sn:sp.n, cg:data.cg === 1, ph:data.ph === 1, bs:Array.isArray(data.bs) ? data.bs.filter(fin).slice(0, 30) : null, bw:fin(data.bw) ? data.bw : null, ch:typeof data.ch === 'string' ? data.ch : null, rain:sp.k === 'rain', spec:typeof data.spec === 'string' ? data.spec.slice(0, 60) : null, hi:fin(data.hi) ? data.hi : 0};
   if (typeof data.br === 'string' && ELN[data.br]) dentBreath(ov, dv, data.br, caster); if (!mine && data.aw === 1) concord(); if (sp.k === 'nova' && data.rk >= 3) fx.push({delay:.6, run:() => applyCast(Object.assign({}, data, {rk:2, q:.6, br:null, vx:0, aw:0}), caster, mine)});
@@ -4109,6 +4248,7 @@ function applyCast(data, caster, mine){
   if (!mine) { const oc = others.get(caster); if (oc && oc.g.userData.cast) oc.g.userData.cast(); }
   if (!mine && data.s !== 'basic') { if (!audios.has(caster)) shout(sp.n, cls, myDist, false); heard.n = sp.n; heard.t = now(); }
   sfx(data.s === 'basic' ? 'trait' : sp.k === 'bolt' ? 'zap' : 'boom', clamp(1 - myDist/60, .1, 1));
+  allyFocus(data, caster); if (sp.k === 'sum') { allyCast(data, caster, mine, sp); return; }
   if (sp.k === 'bolt') { spawnProj({x:o[0], y:o[1], z:o[2], v:dv.multiplyScalar(sp.spd), sp, col, owner:caster, fxd, el, rk:fin(data.rk) ? data.rk : 1}); }
   else if (sp.k === 'rain') {
     const t = data.t; if (!Array.isArray(t) || !t.every(fin)) return; const R = rng(data.sd|0);
@@ -4236,7 +4376,7 @@ function grant(t){
   if (t === 'mp') { me.mp = Math.min(me.maxMp, me.mp + 60); toast('Cristal de mana'); return; }
   if (t === 'pw') { me.pwT = 25; toast('Rune de puissance : dégâts ×1,5 pendant 25 s'); puff(me.x, me.y - 1.7 + 1, me.z, '#ff6a2a', 14, 4, .7, .8, 2); return; }
   if (tomeChoice()) return;
-  const own = CL[me.cls].spells.map((_, i) => me.cls + ':' + i).filter(i => !known.includes(i)), other = known.filter(k => clsOf(k) !== me.cls).length >= 4 ? [] : Object.keys(CL).filter(c => c !== me.cls).flatMap(c => CL[c].spells.map((_, i) => c + ':' + i)).filter(i => !known.includes(i));
+  const own = CL[me.cls].spells.map((_, i) => me.cls + ':' + i).filter(i => !known.includes(i)), other = known.filter(k => clsOf(k) !== me.cls).length >= 4 ? [] : Object.keys(CL).filter(c => c !== me.cls && !CL[c].own).flatMap(c => CL[c].spells.map((_, i) => c + ':' + i)).filter(i => !known.includes(i));
   const pool = own.length && (Math.random() < .6 || !other.length) ? own : other, next = pool.length ? pool[Math.floor(Math.random()*pool.length)] : null;
   if (next) { known.push(next); pickInc(next); pageId = next; if (clsOf(next) !== me.cls) toast('Un sort d\'une autre école : ' + (ELN[ELEM(next, clsOf(next))] || '') + '. Changez d\'école pour déclencher des réactions !'); renderBook(); bookFlash(); banner('Parchemin déchiffré', spellOf(next).n + ' rejoint votre grimoire · criez « ' + incOf(next) + ' »' + (calLeft(next) > 0 ? ' · vos 10 premières incantations l\'apprendront' : '')); }
   else { me.maxMp += 15; me.mp = me.maxMp; toast('Grimoire complet : mana max +15'); }
@@ -4341,11 +4481,11 @@ function hostStep(dt){
   for (const [id, d] of drops) { d.age += dt; if (d.age > 60) { scene.remove(d.g); drops.delete(id); } }
   W.emitT -= dt;
   if (room && W.emitT <= 0) { W.emitT = .1;
-    const pk = {md:mode, w:W.w, st:W.st, t:Math.ceil(W.t), k:W.k, m:arr.slice(0, 45).map(m => [m.id, m.type, r2(m.x), r2(m.z), Math.max(0, Math.round(m.hp)), m.max, m.a > 0 ? 1 : 0]), d:[...drops.values()].map(d => [d.id, d.t, r2(d.x), r2(d.z)]), h:W.hits.splice(0, 20), pl:Object.fromEntries(roster)};
+    const pk = {md:mode, w:W.w, st:W.st, t:Math.ceil(W.t), k:W.k, m:arr.slice(0, 45).map(m => [m.id, m.type, r2(m.x), r2(m.z), Math.max(0, Math.round(m.hp)), m.max, m.a > 0 ? 1 : 0]), d:[...drops.values()].map(d => [d.id, d.t, r2(d.x), r2(d.z)]), al:allyPack(), h:W.hits.splice(0, 20), pl:Object.fromEntries(roster)};
     room.emit('world', pk).catch(()=>{}); }
   else if (!room) W.hits.length = 0;
 }
-function hitPlayer(peer, dmg){ if (peer === 'cristal') { crystalHit(dmg); return; } if (typeof peer === 'string' && peer[0] === '#') return; if (peer === me.peer || peer === 'me') takeDamage(dmg, null); else W.hits.push([peer, dmg]); }
+function hitPlayer(peer, dmg){ if (allyHitPlayer(peer, dmg)) return; if (peer === 'cristal') { crystalHit(dmg); return; } if (typeof peer === 'string' && peer[0] === '#') return; if (allyHitPlayer(peer, dmg)) return; if (peer === 'cristal') { crystalHit(dmg); return; } if (typeof peer === 'string' && peer[0] === '#') return; if (peer === me.peer || peer === 'me') takeDamage(dmg, null); else W.hits.push([peer, dmg]); }
 /* ===================== BOSS : mécaniques et modèles texturés ===================== */
 /* --- textures PBR des boss (tex/boss_*.jpg) --- */
 const BTX = {};
@@ -4677,6 +4817,7 @@ function encyHTML(){ const T2 = (head, rows) => '<table><tr>' + head.map(h => '<
   h += '<h4>Biomes de l\'arène</h4>' + T2(['Biome', 'Vagues', 'Dangers et astuces'], [['base', '1 à 5'], ['volcan', '6 à 10'], ['glace', '11 à 15'], ['corrompu', '16 à 18'], ['orage', '19'], ['temple', '20']].map(([k, w]) => ['<b>' + E((BIO_INFO[k] || {}).n || k) + '</b>', w, E((BIO_INFO[k] || {}).tip || 'Aucun danger particulier.')])) + '<p>Destruction cumulative : le Golem abat deux colonnes, la Liche brise des arches, le Wyrm fait tomber un pan de balustrade ; le Colosse abat aussi des colonnes.</p>';
   h += '<h4>Âmes, Académie et contrats</h4><p>Âmes gagnées même en perdant : 10 par vague tenue, 100 par boss, 30 par champion, 25 par monstre doré, 15 par objectif, plus les bonus des modificateurs et du Pacte du sang.</p>' + T2(['Salle', 'Coût', 'Ce qu\'elle débloque'], ROOMS.map(R => ['<b>' + E(R.n) + '</b>', R.c ? R.c + ' âmes' : '—', E(R.d) + (R.req ? ' (après ' + E((ROOMS.find(x => x.id === R.req) || {}).n || '') + ')' : '')]))
     + T2(['Contrat', 'Objectif', 'Paliers I / II / III', 'Âmes'], Object.values(CONTRACTS).map(C => ['<b>' + E(C.n) + '</b>', E(C.u), C.t.join(' / '), C.r.join(' / ')])) + '<p>Le palier II de « Voix parfaite » révèle aussi « Name of the Storm ». Les récompenses demandent la Salle des contrats.</p>';
+  h += '<h4>Invocateur et Gardien</h4><ul><li>L\'<b>Invocateur</b> (classe du menu) est suivi d\'un <b>Gardien</b>, un golem d\'esprit qui attaque les monstres proches. Il apparaît tout seul au début de la partie, monte en puissance à chaque vague et se soigne hors combat.</li><li>Votre <b>tir de base</b> (clic gauche) désigne la cible du Gardien.</li><li>' + CL.summon.spells.map(x => '<b>' + x.n + '</b> : ' + SUM_D[x.act]).join('</li><li>') + '.</li><li>Les monstres proches s\'en prennent aussi au Gardien. S\'il tombe, il revient au bout de 20 s, ou tout de suite avec Rise Guardian. Sa vie s\'affiche au-dessus de lui et en bas à gauche.</li><li>Ses sorts lui sont propres : les autres classes ne peuvent pas les apprendre.</li></ul>';
   h += '<h4>Combat avancé</h4><ul><li><b>Esquive</b> (Shift) : roulade de quelques mètres dans la direction de déplacement, intouchable 0,45 s, recharge 3 s.</li><li><b>Frappe aérienne</b> : une nova lancée en plein saut fait +25 % de dégâts, +25 % de rayon et ralentit. <b>Élan</b> : une vague lancée en avançant pousse 60 % plus fort et va plus loin.</li><li><b>Hauteur</b> : depuis une terrasse, vos sorts font +15 % aux monstres situés plus bas. Les <b>colonnes</b> arrêtent les flèches des archers.</li><li><b>Comportements</b> : les archers reculent quand on s\'approche, les goules vous encerclent, les ogres <b>chargent</b> en ligne droite (ligne rouge au sol 1 s avant : esquivez sur le côté).</li><li><b>Flèches rouges</b> au bord de l\'écran : monstres proches hors champ (rouge vif : ils attaquent).</li><li><b>Difficulté</b> (menu) : ' + DIFFS.map(d => d.n + ' (vie ×' + d.hp + ', dégâts subis ×' + d.dmg + ')').join(', ') + '.</li><li><b>Archétypes</b> (menu) : ' + Object.values(ARCHS).map(A => A.n + ' : ' + A.d).join(' · ') + '.</li><li><b>Événements rares</b> en pleine vague (dès la 4) : Éclipse, Pluie de mana, Horde dorée.</li><li><b>Écran de mort</b> : indique ce qui vous a tué et donne un conseil.</li></ul>';
   h += '<h4>Toutes les commandes</h4><ul><li><b>Arbre des compétences</b> : touche K, ou le bouton du menu et de la Pause.</li><li><b>Clavier</b> : Z Q S D / W A S D se déplacer · Espace sauter · Clic tirer · 1 à 9 ou molette changer de sort · Clic droit retenir une prononciation · ← → tourner les pages du grimoire · Shift esquive · P passer le didacticiel · H Healing · F Éveil · E relever un allié · L écouter la phrase · V micro · M musique · Entrée écrire une incantation · T discuter · Tab scores · G guide · Échap pause.</li><li><b>Voix</b> : la phrase du sort ouvert · « Healing » · « Awaken » · « Rise » · « one », « two », « three » pour les choix · les mots des boss · les phrases secrètes et des grandes incantations.</li><li><b>Chat (tests)</b> : /aide · /suivante · /vague N · /autel · /vie · /compo X · /mod X · /pacte · /marchand · /dore · /ames N · /relique · /eveil · /parchemin · /maitrise N · /champion · /voie X · /secret · /grande X · /rituel X · /contrat.</li></ul>';
   return h; }
@@ -4803,7 +4944,7 @@ function healCheck(text, final){ if (!text) return false; for (const x of norm(t
 function onWorld(msg){
   if (isHost || msg.peer !== hostPeer) return; const D = msg.data; if (!D || !Array.isArray(D.m)) return;
   if (D.md === 'coop' || D.md === 'pvp') { if (mode !== D.md) { mode = D.md; toast('Mode de la salle : ' + (mode === 'pvp' ? 'chacun pour soi' : 'coop')); } }
-  if (fin(D.w)) W.w = D.w; if (['fight','break','over'].includes(D.st)) W.st = D.st; if (fin(D.t)) W.t = D.t; if (fin(D.k)) W.k = D.k;
+  allyRecv(D.al); if (fin(D.w)) W.w = D.w; if (['fight','break','over'].includes(D.st)) W.st = D.st; if (fin(D.t)) W.t = D.t; if (fin(D.k)) W.k = D.k;
   const seen = new Set();
   for (const t of D.m) { if (!Array.isArray(t)) continue; const [id, ty, x, z, hp, mx, a] = t; if (!fin(id) || !MT[ty] || !fin(x) || !fin(z) || !fin(hp) || !fin(mx)) continue; seen.add(id);
     let m = mons.get(id); if (!m) { m = {id, type:ty, x, z, slowT:0, dotT:0, atk:0, sk:4}; m.g = monsterMesh(ty); mons.set(id, m); }
@@ -5054,7 +5195,7 @@ async function begin(kind){
   me.cls = pickCls; buildStaff(me.cls); me.name = ($('#nm').value.trim() || 'Sorcier').slice(0, 16); me.since = Date.now(); mode = pickMode;
   try { localStorage.setItem('incantatio', JSON.stringify({c:me.cls, n:me.name, l2:$('#lang').value, e2:$('#eng').value, v3:1})); } catch (e) {}
   document.documentElement.style.setProperty('--acc', CL[me.cls].col);
-  { const n = CL[me.cls].spells.length, i0 = Math.floor(Math.random()*n); known = [me.cls + ':' + i0]; page = i0; pageId = known[0]; INC_SEL = {}; pickInc(known[0]); } renderBook();
+  { const n = CL[me.cls].spells.length, i0 = me.cls === 'summon' ? 0 : Math.floor(Math.random()*n); known = [me.cls + ':' + i0]; page = i0; pageId = known[0]; INC_SEL = {}; pickInc(known[0]); } renderBook();
   $('#menu').classList.add('hidden'); $('#hud').classList.remove('hidden');
   respawn(); me.deaths = 0; hostReady = false; isHost = false; room = null;
   {
