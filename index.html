@@ -2072,7 +2072,7 @@ function wavesQuality(id, Q){ if (hasPact('murmure') && !Q.perfect) Q.q *= .6; }
 /* ---- résurrection incantée : « Rise » près de l'âme d'un allié ---- */
 function riseTarget(){ if (me.dead || !room) return null; for (const [p, o] of others) if (o.dead && Math.hypot(o.g.position.x - me.x, o.g.position.z - me.z) < 3.5) return p; return null; }
 const riseNear = () => !!riseTarget();
-const GAME_VER = 'v2.0.4 · 25/11 12:05';
+const GAME_VER = 'v2.0.5 · 25/11 12:20';
 { const v = document.createElement('div'); v.id = 'gamever'; v.textContent = 'Incantatio Arena ' + GAME_VER; v.style.cssText = 'position:fixed;right:8px;bottom:4px;font:12px Georgia,serif;color:#f3e6c8;opacity:.55;z-index:70;pointer-events:none'; document.body.appendChild(v); }
 function riseStart(){ const p = riseTarget(); if (!p) return false; WV.rise = {peer:p, t:3}; toast('Résurrection : restez près de son âme 3 s'); return true; }
 function riseVoice(n){ if (!/\b(rise|rice|rize|raise|rais)\b/.test(n)) return false; return riseStart(); }
@@ -3609,7 +3609,22 @@ function magicShot(basic, vol){ const t = AC.currentTime, v = vol || 1, sr = AC.
   og.gain.setValueAtTime(.0001, t); og.gain.exponentialRampToValueAtTime(basic ? .05 : .045, t + .008); og.gain.exponentialRampToValueAtTime(.0005, t + (basic ? .2 : .28)); const g2 = AC.createGain(); g2.gain.value = .3; o.connect(og); o2.connect(g2); g2.connect(og); og.connect(out); o.start(t); o2.start(t); o.stop(t + .3); o2.stop(t + .3);
   if (basic) { const s = AC.createOscillator(), sg = AC.createGain(); s.type = 'sine'; s.frequency.value = 2960; sg.gain.setValueAtTime(.0001, t + .02); sg.gain.exponentialRampToValueAtTime(.018, t + .03); sg.gain.exponentialRampToValueAtTime(.0005, t + .12); s.connect(sg); sg.connect(out); s.start(t + .02); s.stop(t + .14); }
   const k = AC.createOscillator(), kg = AC.createGain(); k.type = 'sine'; k.frequency.setValueAtTime(basic ? 150 : 120, t); k.frequency.exponentialRampToValueAtTime(55, t + .1); kg.gain.setValueAtTime(.0001, t); kg.gain.exponentialRampToValueAtTime(basic ? .06 : .09, t + .005); kg.gain.exponentialRampToValueAtTime(.0005, t + .12); k.connect(kg); kg.connect(out); k.start(t); k.stop(t + .14); }
-function sfx(kind, vol){ try { AC = AC || new AudioContext(); if (kind === 'trait' || kind === 'zap') { magicShot(kind === 'trait', vol); return; } const t = AC.currentTime, g = AC.createGain(); g.connect(AC.destination); g.gain.setValueAtTime((vol||1)*.18, t); g.gain.exponentialRampToValueAtTime(.001, t + (kind === 'boom' ? .6 : .25));
+/* sons du tir de base au choix (menu Pause), joués doucement */
+const SHOTS = ['Souffle', 'Cristal', 'Plume', 'Grave', 'Aucun'];
+let SHOT = 0; try { const v = +localStorage.getItem('incantatio-shot'); if (v >= 0 && v < SHOTS.length) SHOT = v; } catch (e) {}
+function shotSound(vol){ if (!AC) return; const k = SHOTS[SHOT], t = AC.currentTime, v = (vol || 1)*.9, out = AC.createGain(); out.gain.value = v; out.connect(AC.destination);
+  if (k === 'Aucun') return;
+  if (!shotNB) { const sr = AC.sampleRate; shotNB = AC.createBuffer(1, sr*.3, sr); const d = shotNB.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random()*2 - 1; }
+  const noise = (f0, f1, q, peak, dur) => { const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain(); s.buffer = shotNB; f.type = 'bandpass'; f.Q.value = q; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur); g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + .02); g.gain.exponentialRampToValueAtTime(.0003, t + dur); s.connect(f); f.connect(g); g.connect(out); s.start(t); s.stop(t + dur + .02); };
+  const tone = (type, f0, f1, peak, dur, delay) => { const o = AC.createOscillator(), g = AC.createGain(), t0 = t + (delay || 0); o.type = type; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(f1, t0 + dur); g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(peak, t0 + .006); g.gain.exponentialRampToValueAtTime(.0002, t0 + dur); o.connect(g); g.connect(out); o.start(t0); o.stop(t0 + dur + .02); };
+  if (k === 'Souffle') { noise(1400, 500, .8, .05, .2); tone('sine', 240, 160, .02, .12); }
+  else if (k === 'Cristal') { const f = 1320 + Math.random()*80; tone('sine', f, f, .03, .35); tone('sine', f*2.01, f*2.01, .01, .2); noise(5000, 3000, 2, .008, .08); }
+  else if (k === 'Plume') noise(2600, 1200, .6, .025, .14);
+  else if (k === 'Grave') { tone('triangle', 180, 90, .05, .22); noise(600, 250, 1, .025, .18); } }
+function shotUI(){ const host = $('#pause > div'); if (!host || $('#pshot')) return; const b = document.createElement('button'); b.id = 'pshot'; b.type = 'button'; const lab = () => b.textContent = 'Son du tir de base : ' + SHOTS[SHOT] + ' (clic : suivant)'; lab();
+  b.onclick = e => { e.stopPropagation(); SHOT = (SHOT + 1) % SHOTS.length; try { localStorage.setItem('incantatio-shot', SHOT); } catch (er) {} lab(); try { AC = AC || new AudioContext(); shotSound(1); } catch (er) {} }; const g = $('#pguide'); if (g) g.parentNode.insertBefore(b, g); }
+setTimeout(shotUI, 0);
+function sfx(kind, vol){ try { AC = AC || new AudioContext(); if (kind === 'trait') { shotSound(vol); return; } if (kind === 'zap') { magicShot(false, vol); return; } const t = AC.currentTime, g = AC.createGain(); g.connect(AC.destination); g.gain.setValueAtTime((vol||1)*.18, t); g.gain.exponentialRampToValueAtTime(.001, t + (kind === 'boom' ? .6 : .25));
   if (kind === 'boom') { const b = AC.createBuffer(1, AC.sampleRate*.6, AC.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/d.length, 2); const s = AC.createBufferSource(); s.buffer = b; const f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 700; s.connect(f); f.connect(g); s.start(t); }
   else { const o = AC.createOscillator(); o.type = kind === 'hit' ? 'square' : 'sawtooth'; o.frequency.setValueAtTime(kind === 'hit' ? 180 : 620, t); o.frequency.exponentialRampToValueAtTime(kind === 'hit' ? 60 : 160, t + .22); o.connect(g); o.start(t); o.stop(t + .26); } } catch (e) {} }
 
