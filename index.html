@@ -3751,7 +3751,7 @@ function sys(x){ const p = document.createElement('p'); p.className = 'sys'; p.t
 function logPush(p){ const l = $('#chatlog'); l.append(p); while (l.children.length > 9) l.firstChild.remove(); }
 function openChat(sayMode){ chatOpen = !sayMode; const i = $('#chatin'); i.classList.remove('hidden'); i.classList.toggle('say', !!sayMode); i.dataset.say = sayMode ? '1' : ''; i.placeholder = sayMode ? 'Écrivez une incantation, ou une commande : /suivante, /vague 10, /aide' : (room ? 'Message à la salle, ou commande : /suivante, /aide' : 'Commande : /suivante, /vague 10, /autel, /vie, /aide'); i.value = ''; document.exitPointerLock && document.exitPointerLock(); setTimeout(() => i.focus(), 0); }
 function closeChat(){ chatOpen = false; const i = $('#chatin'); i.blur(); i.classList.add('hidden'); }
-function sendChat(){ const i = $('#chatin'), v = i.value.trim(); if (i.dataset.say) { if (v) { const m = matchSpell(v); if (m) tryCast(m.id); else fizzle(); } } else if (v && room) room.emit('chat', {x:v.slice(0, 140)}).catch(()=>{}); else if (v) addChat(me.name, v, me.cls); closeChat(); }
+function sendChat(){ const i = $('#chatin'), v = i.value.trim(); if (v.startsWith('/') && chatCmd(v)) { i.value = ''; closeChat(); return; } if (i.dataset.say) { if (v) { const m = matchSpell(v); if (m) tryCast(m.id); else fizzle(); } } else if (v && room) room.emit('chat', {x:v.slice(0, 140)}).catch(()=>{}); else if (v) addChat(me.name, v, me.cls); closeChat(); }
 $('#chatin').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') sendChat(); if (e.key === 'Escape') closeChat(); });
 
 /* ---------- hud ---------- */
