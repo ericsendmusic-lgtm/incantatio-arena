@@ -621,7 +621,7 @@ let swX = 0, swY = 0, svX = 0, svY = 0, bobP = 0, leanZ = 0, burstT = 0;
 addEventListener('mousemove', e => { if (!locked()) return; svX -= clamp(e.movementX, -60, 60)*.0042; svY += clamp(e.movementY, -60, 60)*.0042; });
 const _tip = new THREE.Vector3();
 function staffTipWorld(out){ if (!staffCrys) return out.copy(camera.position); return staffCrys.getWorldPosition(out); }
-function staffSpellColor(){ try { if (META.staffCol) return STAFF_TGT.set(META.staffCol); } catch (e) {} try { if (META.staffCol) return STAFF_TGT.set(META.staffCol); } catch (e) {} const ids = me.cls && CL[me.cls] ? CL[me.cls].spells.length : 7; return STAFF_TGT.set(CL[me.cls] ? CL[me.cls].col : '#fff').offsetHSL(((page % ids) - 3)*.028, 0, (page % 2)*.06); }
+function staffSpellColor(){ try { if (META.staffCol) return STAFF_TGT.set(META.staffCol); } catch (e) {} const ids = me.cls && CL[me.cls] ? CL[me.cls].spells.length : 7; return STAFF_TGT.set(CL[me.cls] ? CL[me.cls].col : '#fff').offsetHSL(((page % ids) - 3)*.028, 0, (page % 2)*.06); }
 function staffCastFx(id){ burstT = .38; staffKick = 1; if (id) { const c = id === 'basic' ? '#f3ead2' : (CL[clsOf(id)] || CL[me.cls]).col; STAFF_COL.set(c).multiplyScalar(1.6); } }
 function staffUpdate(dt, mvg){
   if (!staffCrys) return;
@@ -1286,7 +1286,6 @@ function chatCmd(v){ const [c, a] = v.slice(1).trim().toLowerCase().split(/\s+/)
   if (c === 'autel') { altarOpen(); return true; }
   if (c === 'vie') { me.hp = 100; me.mp = me.maxMp; sys('Vie et mana au maximum.'); return true; }
   if (progCmd(c, a)) return true;
-  if (progCmd(c, a)) return true;
   sys('Commande inconnue : /' + c + ' (tapez /aide)'); return true; }
 function skipToWave(n){ for (const m of [...mons.values()]) scene.remove(m.g); mons.clear(); W.q = []; if (W.arrows) W.arrows.length = 0; W.w = n - 1; W.st = 'break'; W.t = 1.5; if (AUTEL) AUTEL.prevSt = 'fight';
   sys('Passage à la vague ' + n + (n === 5 || n === 10 || n === 15 || n === 20 ? ' (boss)' : '') + ' · biome : ' + (BIO_INFO[biomeFor(n)] || {}).n); }
@@ -1303,7 +1302,7 @@ const UNDEAD = /Squelette|Goule|Liche|Spectre|Fant|Zombie|Revenant|Momie/i;
 const RXS = {holes:[]};
 function mkSync(m){ m.mkEl = m.mk ? m.mk.el : ''; m.mkT = m.mk ? m.mk.t : 0; W.hits.push(['mk', m.id, m.mkEl, m.mk ? 4 : 0]); }
 /* appelé par hurt() chez l'hôte : vulnérabilités, marques, réactions */
-function rxHurt(m, dmg, f, by){ if (!f) return dmg; if (by) m.lastBy = by; if (f.sn) m.lastSpell = f.sn; f.by = by; dmg = rxHurt2(m, dmg, f); f.by = by; dmg = rxHurt2(m, dmg, f);
+function rxHurt(m, dmg, f, by){ if (!f) return dmg; if (by) m.lastBy = by; if (f.sn) m.lastSpell = f.sn; f.by = by; dmg = rxHurt2(m, dmg, f);
   if (m.vulnT > T) dmg *= 1.25; if (f.tg && m.mk && m.mk.el === 'ice' && m.mk.t > T) dmg *= 1.3;
   const el = f.el; if (!el || el === 'arcane' || f.basic || f.rx) return dmg;
   const hist = m.mkH || (m.mkH = []); hist.push([el, T]); while (hist.length && T - hist[0][1] > 6) hist.shift(); const set = new Set(hist.map(h => h[0]));
@@ -1429,7 +1428,7 @@ function altarOpen(){ if (AUTEL.open) return; AUTEL.offer = altarOffer(); if (!A
   $('#altar').classList.remove('hidden'); sfxChime(); }
 function altarPick(i){ const b = AUTEL.offer[i]; if (!AUTEL.open || !b) return; BL.add(b.id); archAdd('bless', b.id); AUTEL.open = false; $('#altar').classList.add('hidden'); banner('Bénédiction : ' + b.n, b.d); flash(me.x, me.y, me.z, '#ffd86a', 4, .4); renderBook(); }
 function altarVoice(text){ if (voiceExtras(text)) return true; if (!AUTEL.open) return false; const w = norm(text).split(' '); const map = {one:0, won:0, first:0, un:0, two:1, to:1, too:1, second:1, deux:1, three:2, tree:2, third:2, trois:2}; for (const x of w) if (x in map) { altarPick(map[x]); return true; } return false; }
-function blDefend(d){ d = progDefend(d); d = progDefend(d); if (hasB('voile') && !AUTEL.veil && d > 0) { AUTEL.veil = true; qPop('Voile spectral', '#bfe6ff'); return 0; } if (hasB('pierre') && QL.stoneT > now()) d *= .8; return d; }
+function blDefend(d){ d = progDefend(d); if (hasB('voile') && !AUTEL.veil && d > 0) { AUTEL.veil = true; qPop('Voile spectral', '#bfe6ff'); return 0; } if (hasB('pierre') && QL.stoneT > now()) d *= .8; return d; }
 const healCost = () => hasB('sobre') ? 20 : HEALING.mana;
 
 /* ---- chronique de partie ---- */
@@ -1438,7 +1437,6 @@ function chronShow(){ const el = Object.entries(STATS.sch).filter(([k]) => k !==
   $('#chron').innerHTML = `<h3>Chronique de la partie</h3><p class="sub">Vague ${W.w} atteinte · ${mins} min · ${FRAG_N >= 1 ? Math.min(3, FRAG_N) + ' fragment' + (FRAG_N > 1 ? 's' : '') + ' du Cristal' : 'aucun fragment du Cristal'}</p>
     <table><tr><td>Monstres vaincus</td><td>${STATS.kills}</td></tr><tr><td>Incantations</td><td>${STATS.casts} dont ${STATS.parf} Parfaites et ${STATS.nettes} Nettes</td></tr><tr><td>Plus longue série de Parfaites</td><td>${QL.best}</td></tr>
     <tr><td>Réactions élémentaires</td><td>${STATS.rx}${STATS.rxK.size ? ' (' + [...STATS.rxK].map(k => RX[k]).join(', ') + ')' : ''}</td></tr><tr><td>École favorite</td><td>${el ? ELN[el[0]] || el[0] : '—'}</td></tr>
-    <tr><td>Âmes gagnées</td><td>${RUN.souls} (total ${META.souls})</td></tr><tr><td>Reliques</td><td>${RUN.relics.map(r => (RELICS.find(x => x.id === r) || {}).n).join(', ') || '—'}</td></tr>
     <tr><td>Âmes gagnées</td><td>${RUN.souls} (total ${META.souls})</td></tr><tr><td>Reliques</td><td>${RUN.relics.map(r => (RELICS.find(x => x.id === r) || {}).n).join(', ') || '—'}</td></tr>
     <tr><td>Bénédictions</td><td>${blist.length ? blist.join(', ') : '—'}</td></tr></table>
     <p class="word">${word ? 'Le mot de la partie : <b>« ' + esc(word[0]) + ' »</b> (' + word[1] + ' victimes)' : 'Prononcez vos sorts pour écrire votre légende.'}</p><small>Entrée : fermer</small>`;
@@ -1580,7 +1578,7 @@ function champMake(m){ const a = Object.keys(AFFIX).sort(() => Math.random() - .
 function champVis(m){ if (!m.g || m.g.userData.champ) return; m.g.userData.champ = 1; m.g.scale.multiplyScalar(1.35); const txt = 'Champion · ' + m.champ.map(x => AFFIX[x]).join(' · '), tx = canvasTex(512, 64, g => { g.font = 'bold 28px Cinzel, Georgia, serif'; g.textAlign = 'center'; g.lineWidth = 6; g.strokeStyle = 'rgba(0,0,0,.85)'; g.strokeText(txt, 256, 42); g.fillStyle = '#ffd86a'; g.fillText(txt, 256, 42); });
   const s = new THREE.Sprite(new THREE.SpriteMaterial({map:tx, depthWrite:false, transparent:true})); s.scale.set(5.2/1.35, .65/1.35, 1); s.position.y = (MT[m.type].h + 1.1)/1.35 + .2; m.g.add(s);
   const au = new THREE.Mesh(geo('chAura', () => new THREE.RingGeometry(1.1, 1.5, 40).rotateX(-Math.PI/2)), new THREE.MeshBasicMaterial({color:0xffc040, transparent:true, opacity:.55, blending:THREE.AdditiveBlending, depthWrite:false})); au.position.y = .08; m.g.add(au); m.g.userData.aura = au; }
-function champTick(m, dt){ if (!m.champ) return; if (m.champ.includes('rage')) for (const o of mons.values()) if (o !== m && Math.hypot(o.x - m.x, o.z - m.z) < 8) o.rageT = T + .5; if (m.champ.includes('rage')) for (const o of mons.values()) if (o !== m && Math.hypot(o.x - m.x, o.z - m.z) < 8) o.rageT = T + .5; const u = m.g && m.g.userData; if (u && u.aura) u.aura.rotation.y += dt*1.5;
+function champTick(m, dt){ if (!m.champ) return; if (m.champ.includes('rage')) for (const o of mons.values()) if (o !== m && Math.hypot(o.x - m.x, o.z - m.z) < 8) o.rageT = T + .5; const u = m.g && m.g.userData; if (u && u.aura) u.aura.rotation.y += dt*1.5;
   if (m.champ.includes('voile') && u && u.body) u.body.visible = Math.sin(T*1.6 + m.id) > -.2 || Math.sin(T*40) > .6; }
 
 /* ---- phases des boss (Golem et Liche) et moments vocaux ---- */
@@ -3180,7 +3178,6 @@ function tryCast(id){ if (paused) return;
   if (pttOn) pttCast = true;
   if (me.dead || !known.includes(id)) return;
   if (BAN.t > now() && ELEM(id, clsOf(id)) === BAN.el) { toast('Mot interdit : l\'école ' + ELN[BAN.el] + ' est bannie'); fizzle(); return; }
-  if (BAN.t > now() && ELEM(id, clsOf(id)) === BAN.el) { toast('Mot interdit : l\'école ' + ELN[BAN.el] + ' est bannie'); fizzle(); return; }
   const sp = spellOf(id); if ((cds[id] || 0) > now()) { toast(sp.n + ' : pas encore prêt'); return; }
   const cost = manaCost(sp); if (me.mp < cost) { toast('Pas assez de mana'); return; }
   QL.cdEnd = cds[id] || 0; const Q = qualityFor(id); me.mp -= cost; cds[id] = now() + sp.cd; pageId = id; page = Math.max(0, known.indexOf(id)); QL.cur = Q; qualityApply(id, Q); QL.ph[id] = now() + sp.cd; if (id !== 'basic') rotInc(id); renderBook(); bookFlash();
@@ -3208,7 +3205,7 @@ function rng(seed){ let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) | 0;
 
 function applyCast(data, caster, mine){
   if (!data || typeof data !== 'object') return;
-  let sp = spellOf(data.s); if (!sp) return; if (data.pw === 1) sp = Object.assign({}, sp, {dmg:sp.dmg*1.5}); if (fin(data.q) || fin(data.bm)) sp = Object.assign({}, sp, {dmg:sp.dmg*clamp(fin(data.q) ? data.q : 1, .5, 1.3)*clamp(fin(data.bm) ? data.bm : 1, 1, 2.6)}); sp = castMods(data, sp); if (fin(data.q) || fin(data.bm)) sp = Object.assign({}, sp, {dmg:sp.dmg*clamp(fin(data.q) ? data.q : 1, .5, 1.3)*clamp(fin(data.bm) ? data.bm : 1, 1, 2.6)}); sp = castMods(data, sp);
+  let sp = spellOf(data.s); if (!sp) return; if (data.pw === 1) sp = Object.assign({}, sp, {dmg:sp.dmg*1.5}); if (fin(data.q) || fin(data.bm)) sp = Object.assign({}, sp, {dmg:sp.dmg*clamp(fin(data.q) ? data.q : 1, .5, 1.3)*clamp(fin(data.bm) ? data.bm : 1, 1, 1.5)}); if (fin(data.q) || fin(data.bm)) sp = Object.assign({}, sp, {dmg:sp.dmg*clamp(fin(data.q) ? data.q : 1, .5, 1.3)*clamp(fin(data.bm) ? data.bm : 1, 1, 2.6)}); sp = castMods(data, sp);
   const o = data.o, d = data.d; if (!Array.isArray(o) || !Array.isArray(d) || ![...o, ...d].every(fin)) return;
   const cls = clsOf(data.s) || (others.get(caster) || {}).cls || me.cls, col = data.gold === 1 ? '#ffe08a' : data.s === 'basic' ? '#f3ead2' : CL[cls] ? CL[cls].col : '#fff';
   const ov = new THREE.Vector3(o[0], o[1], o[2]), dv = new THREE.Vector3(d[0], d[1], d[2]).normalize(), el = ELEM(data.s, cls);
@@ -3279,7 +3276,7 @@ function boltFx(pts, col, el){ lightning(pts, col, .42, .085, .04); for (let i =
 function explode(p){
   const s = p.sp, x = p.mesh.position.x, y = p.mesh.position.y, z = p.mesh.position.z;
   if (p.bolt) lightning([new THREE.Vector3(x + (Math.random() - .5)*3, 26, z + (Math.random() - .5)*3), new THREE.Vector3(x, Math.max(.1, y), z)], p.col, .3, .1, .05);
-  impactFx(x, y, z, p.el, p.col, !!s.splash); bioSpell(p.el, x, z); rankBurst(p, x, y, z); rankBurst(p, x, y, z);
+  impactFx(x, y, z, p.el, p.col, !!s.splash); bioSpell(p.el, x, z); rankBurst(p, x, y, z);
   if (s.splash) { ringFx(x, z, s.splash, p.col, .4, p.el, 1); sfx('boom', .5); }
   if (s.splash && isHost) for (const m of [...mons.values()]) { const dd = Math.hypot(m.x-x, m.z-z); if (dd < s.splash + MT[m.type].r && !p.hit.has(m.id)) hurt(m, s.dmg*(p.groundOnly ? 1 : .6), p.fxd, (m.x-x)/(dd||1), (m.z-z)/(dd||1), p.owner); }
   if (s.splash && mode === 'pvp' && p.owner !== me.peer && Math.hypot(me.x-x, me.z-z) < s.splash) takeDamage(s.dmg*.5, p.owner);
@@ -3346,7 +3343,6 @@ function grant(t){
   if (t === 'mp') { me.mp = Math.min(me.maxMp, me.mp + 60); toast('Cristal de mana'); return; }
   if (t === 'pw') { me.pwT = 25; toast('Rune de puissance : dégâts ×1,5 pendant 25 s'); puff(me.x, me.y - 1.7 + 1, me.z, '#ff6a2a', 14, 4, .7, .8, 2); return; }
   if (tomeChoice()) return;
-  if (tomeChoice()) return;
   const own = CL[me.cls].spells.map((_, i) => me.cls + ':' + i).filter(i => !known.includes(i)), other = known.filter(k => clsOf(k) !== me.cls).length >= 4 ? [] : Object.keys(CL).filter(c => c !== me.cls).flatMap(c => CL[c].spells.map((_, i) => c + ':' + i)).filter(i => !known.includes(i));
   const pool = own.length && (Math.random() < .6 || !other.length) ? own : other, next = pool.length ? pool[Math.floor(Math.random()*pool.length)] : null;
   if (next) { known.push(next); pickInc(next); pageId = next; if (clsOf(next) !== me.cls) toast('Un sort d\'une autre école : ' + (ELN[ELEM(next, clsOf(next))] || '') + '. Changez d\'école pour déclencher des réactions !'); renderBook(); bookFlash(); banner('Parchemin déchiffré', spellOf(next).n + ' rejoint votre grimoire · criez « ' + incOf(next) + ' »' + (calLeft(next) > 0 ? ' · vos 10 premières incantations l\'apprendront' : '')); }
@@ -3367,7 +3363,6 @@ function spawnMon(type){
   const mx = MT[type].hp * (1 + .12*(W.w-1)) * (.6 + .4*np);
   const sp0 = spawnPos(type), m = {id:W.nid++, type, x:sp0[0], z:sp0[1], hp:mx, max:Math.round(mx), atk:0, a:0, slowT:0, dotT:0, sk:4};
   m.tx = m.x; m.tz = m.z; m.g = monsterMesh(type); mons.set(m.id, m); champMaybe(m);
-  if (MT[type].boss) bossSpawned(m); champMaybe(m);
   if (MT[type].boss) bossSpawned(m);
 }
 /* ---- monstres sur le relief : apparition, champ de directions (Dijkstra sur une grille de 1 m), pas et rebords ---- */
@@ -3429,7 +3424,6 @@ function hostStep(dt){
     m.slowT = Math.max(0, m.slowT - dt); m.a = Math.max(0, m.a - dt);
     if (!tg) continue;
     if (m.stunT > T || m.charmT > T) continue;
-    if (m.stunT > T || m.charmT > T) continue;
     const bm = (t.boss || t.head) ? bossStep(m, t, tg, bd, P, dt) : 0; if (bm === 'skip') continue;
     const sp = t.spd * .7 /* monstres ralentis de 30 % */ * (m.slowT > 0 ? .45 : 1) * (m.spdK || 1) * (m.rageT > T ? 1.3 : 1);
     const sameLvl = t.boss || Math.abs(walkH(tg.x, tg.z) - walkH(m.x, m.z)) < 1.3;
@@ -3489,7 +3483,6 @@ function placeHead(B, h){ const o = HEAD_OFS[h.type], c = Math.cos(B.face || 0),
 /* --- dégâts différés (rochers, orbes, souffles) : esquivables --- */
 W.rocks = []; W.cones = [];
 function bossStep(m, t, tg, bd, P, dt){
-  bossPhase(m, t, tg, P, dt);
   bossPhase(m, t, tg, P, dt);
   if (m.type === 3) { /* GOLEM : lance des rochers sur un joueur au hasard */
     m.rt -= dt; if (m.rt <= 0 && P.length) { const low = m.hp < m.max*.5; m.rt = low ? 2.4 : 3.4; m.a = .6;
@@ -3742,7 +3735,6 @@ function guideHTML(){
   <h4>Survie</h4><ul><li><b>Healing</b> : criez « Healing » (ou touche H) — 30 mana → 22 PV, 8 s de recharge.</li><li>La vie remonte <b>très lentement</b> toute seule après 6 s sans dégâts. Le mana remonte lentement.</li>
   <li>Butin : croix d'émeraude +45 PV · cristaux de saphir +60 mana · parchemin = nouveau sort · rune de feu = dégâts ×1,5 pendant 25 s.</li><li>Les attaques de boss sont <b>annoncées au sol</b> (cercles et cônes rouges ou verts) : sortez-en !</li></ul>
   <h4>Progresser (1.2)</h4><ul><li><b>Résonance</b> (barre dorée en bas à gauche) : incantations, Parfaites, réactions, changements d'école et éliminations la remplissent. À 100, dites <b>« Awaken »</b> ou touche <b>F</b> : 8 s de sorts gratuits, dégâts ×2 et zones ×1,5.</li><li><b>Parchemins</b> : choisissez une page parmi trois — nouveau sort, autre école, <b>rang supérieur</b> (II puis III, qui changent le comportement du sort) ou sort rare.</li><li><b>Maîtrise</b> : chaque sort gagne des niveaux en le lançant (une Parfaite compte double). Niveau 3 : phrase secrète « … Unbound » (+20 %). Niveau 5 : effets dorés. Niveau 7 : commence au rang II. Niveau 10 : titre.</li><li><b>Reliques</b> : chaque gardien vaincu en offre une, avec un choix d'orientation (Destruction, Protection, Contrôle). Douze reliques, deux ensembles.</li><li><b>Champions</b> toutes les 3 vagues : deux affixes, butin garanti, 30 âmes.</li><li><b>Golem et Liche en trois phases</b> : rochers qui roulent, rage, Mot interdit, phylactère. Quand des runes s'allument, criez le mot affiché pour ouvrir une brèche (×1,6 pendant 6 s). Si la Liche vole une phrase, dites-la avant elle.</li><li><b>Âmes</b>, gagnées même en perdant : dépensez-les dans l'<b>Académie</b> (menu) pour restaurer des salles. Les <b>Archives</b> gardent tout ce que vous avez découvert.</li><li>Touche <b>L</b> : écouter la phrase du sort ouvert.</li></ul>
-  <h4>Progresser (1.2)</h4><ul><li><b>Résonance</b> (barre dorée en bas à gauche) : incantations, Parfaites, réactions, changements d'école et éliminations la remplissent. À 100, dites <b>« Awaken »</b> ou touche <b>F</b> : 8 s de sorts gratuits, dégâts ×2 et zones ×1,5.</li><li><b>Parchemins</b> : choisissez une page parmi trois — nouveau sort, autre école, <b>rang supérieur</b> (II puis III, qui changent le comportement du sort) ou sort rare.</li><li><b>Maîtrise</b> : chaque sort gagne des niveaux en le lançant (une Parfaite compte double). Niveau 3 : phrase secrète « … Unbound » (+20 %). Niveau 5 : effets dorés. Niveau 7 : commence au rang II. Niveau 10 : titre.</li><li><b>Reliques</b> : chaque gardien vaincu en offre une, avec un choix d'orientation (Destruction, Protection, Contrôle). Douze reliques, deux ensembles.</li><li><b>Champions</b> toutes les 3 vagues : deux affixes, butin garanti, 30 âmes.</li><li><b>Golem et Liche en trois phases</b> : rochers qui roulent, rage, Mot interdit, phylactère. Quand des runes s'allument, criez le mot affiché pour ouvrir une brèche (×1,6 pendant 6 s). Si la Liche vole une phrase, dites-la avant elle.</li><li><b>Âmes</b>, gagnées même en perdant : dépensez-les dans l'<b>Académie</b> (menu) pour restaurer des salles. Les <b>Archives</b> gardent tout ce que vous avez découvert.</li><li>Touche <b>L</b> : écouter la phrase du sort ouvert.</li></ul>
   <h4>Commandes de test</h4><ul><li>Bouton <b>Vague suivante (test)</b> dans le menu Pause (Échap), ou dans le chat (T ou Entrée) : <b>/suivante</b> passe à la vague suivante, <b>/vague 15</b> va directement à la vague 15, <b>/autel</b> ouvre l'autel des choix, <b>/vie</b> remet la vie et le mana au maximum, <b>/aide</b> rappelle les commandes. En ligne, seul l'hôte peut changer de vague.</li></ul>
   <h4>Marques et réactions</h4><ul><li>Chaque sort marque sa cible 4 s (rond coloré au-dessus du monstre) : ${Object.entries(MK_N).map(([k, v]) => '<b style="color:' + ELC[k] + '">' + v + '</b>').join(', ')}. Un sort d'une <b>autre école</b> sur une cible marquée déclenche une réaction.</li>${Object.entries(RX_D).map(([k, d]) => '<li><b>' + RX[k] + '</b> (' + k.split('+').map(e => ELN[e]).join(' + ') + ') : ' + d + '</li>').join('')}<li>Les parchemins peuvent apporter des sorts d'autres écoles. Trois réactions secrètes demandent trois écoles en moins de 6 s.</li></ul>
   <h4>Qualité de l'incantation</h4><ul><li><b>Nette</b> (+10 %) : reconnue du premier coup. <b>Parfaite</b> (+25 %, 3 mana rendus) : nette et dite dans les 2,5 s où le sort est prêt — la barre dorée sous la phrase montre cette fenêtre. Trois Parfaites d'affilée : <b>Flux</b>, −20 % de mana pendant 6 s.</li><li><b>Presque !</b> : une phrase approchante lance quand même le sort à 60 %. La tolérance de la voix se règle dans le menu Pause. Le volume ne compte jamais.</li></ul>
@@ -3790,7 +3782,6 @@ function onFrag(n, page){ setFrag(n); flash(0, 5, 0, '#bfe2ff', 12, 1.2); puff(0
 MT.push({n:'Archimage Velkar', hp:2600, spd:3, dmg:20, r:1.4, h:5, reach:3, cd:1.6, boss:1},
         {n:'Reflet de Velkar', hp:160, spd:3.4, dmg:6, r:.7, h:2.8, reach:1.8, cd:1.2, ranged:{min:5, max:22, cd:2.2, dmg:8}});
 WEAK[15] = {spirit:1.5, shadow:.6};
-MT.push({n:'Phylactère', hp:260, spd:0, dmg:0, r:.9, h:2.2, reach:0, cd:99, phyl:1});
 MT.push({n:'Phylactère', hp:260, spd:0, dmg:0, r:.9, h:2.2, reach:0, cd:99, phyl:1});
 const ELS = ['fire', 'ice', 'storm', 'spirit', 'shadow'], ELCOL = {fire:'#ff7a2a', ice:'#7fdcff', storm:'#ffe14a', spirit:'#c08aff', shadow:'#5aff9c'};
 let DUEL = null, DUEL_UI = null;
