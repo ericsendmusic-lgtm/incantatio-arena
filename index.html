@@ -3863,7 +3863,7 @@ const CAL_N = 10; let CAL = {}; try { CAL = JSON.parse(localStorage.getItem('inc
 const calLeft = id => Math.max(0, CAL_N - (CAL[lkey(id)] || 0));
 function calUse(id){ id = lkey(id); CAL[id] = (CAL[id] || 0) + 1; try { localStorage.setItem('incantatio-calib2', JSON.stringify(CAL)); } catch (e) {} }
 function fizzle(){ if (W.st === 'fight') WV.failed = true; setTimeout(() => { if (lastFail && now() - lastFail.t < 4.5) $('#bkhint').textContent = 'Raté ? Clic droit : le jeu retient ce mot pour le sort ouvert dans le grimoire.'; }, 1200); $('#bkhint').textContent = lastNear && lastNear.s > .4 ? 'Presque ! « ' + spellOf(lastNear.id).n + ' » à ' + Math.round(lastNear.s*100) + ' %, répétez plus distinctement.' : 'Le sort se dissipe… parlez plus clairement.'; }
-function tryCast(id){ if (paused) return;
+function tryCast(id){ if (paused && !room) return; if (paused && !room) return;
   if (pttOn) pttCast = true;
   if (me.dead || !known.includes(id)) return;
   if (BAN.t > now() && ELEM(id, clsOf(id)) === BAN.el) { toast('Mot interdit : l\'école ' + ELN[BAN.el] + ' est bannie'); fizzle(); return; }
@@ -4582,6 +4582,7 @@ function computeHost(){ if (!hostReady) return; if (!room) { isHost = true; host
 /* pause : solo = partie figée ; en ligne = déconnexion, avec reconnexion au même code */
 let paused = false, netWas = null, autoReco = null;
 function updPause(){ $('#pause').classList.toggle('hidden', !paused);
+  if (room && paused) { $('#pstat').textContent = 'Partie en ligne : elle continue pendant que ce menu est ouvert, vous restez dans la salle. Reprenez vite, les monstres peuvent vous atteindre !'; if ($('#preco')) $('#preco').classList.add('hidden'); return; }
   $('#pstat').textContent = netWas ? (netWas.host ? 'Vous avez quitté votre partie en ligne. « Se reconnecter » la recrée avec le même code ' + netWas.code + ' : vos amis se reconnectent automatiquement.' : 'Vous avez quitté la partie ' + netWas.code + '. Vous pouvez vous y reconnecter.') : 'La partie est figée.';
   if (paused && typeof RUN !== 'undefined') { const rl = RUN.relics.map(r => (RELICS.find(x => x.id === r) || {}).n).filter(Boolean); $('#pstat').textContent += ' · Résonance ' + Math.round(RESO.v) + ' %' + (rl.length ? ' · Reliques : ' + rl.join(', ') : '') + ' · Âmes : ' + META.souls; }
   $('#preco').classList.toggle('hidden', !netWas); $('#presume').textContent = netWas ? 'Reprendre seul' : 'Reprendre'; }
@@ -4771,11 +4772,11 @@ addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab') $('
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 const locked = () => document.pointerLockElement === renderer.domElement;
 document.addEventListener('pointerlockchange', () => { const p = playing && !locked() && !chatOpen && $('#chatin').classList.contains('hidden');
-  if (p && !paused) { paused = true; if (room) netLeave(); } else if (locked()) paused = false; updPause(); });
+  if (p && !paused) { paused = true; } else if (locked()) paused = false; updPause(); });
 $('#presume').onclick = () => { try { const r = renderer.domElement.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch (e) {} };
 /* vraie pause : Échap même sans souris capturée, changement d'onglet, et temps de recharge des sorts gelés pendant la pause */
 let pauseAt0 = 0;
-function pauseNow(){ if (paused || !playing) return; paused = true; for (const k in keys) keys[k] = false; if (room) netLeave(); pauseAt0 = now(); updPause(); }
+function pauseNow(){ if (paused || !playing) return; paused = true; for (const k in keys) keys[k] = false; pauseAt0 = now(); updPause(); }
 document.addEventListener('pointerlockchange', () => { if (paused) { if (!pauseAt0) pauseAt0 = now(); } else if (pauseAt0) { const d = now() - pauseAt0; pauseAt0 = 0; for (const k in cds) cds[k] += d; } });
 addEventListener('keydown', e => { if (e.code === 'Escape' && playing && !paused && !locked() && !chatOpen && !guideOpen && !storyOpen) pauseNow(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseNow(); });
@@ -4842,7 +4843,7 @@ $('#code').addEventListener('keydown', e => { if (e.key === 'Enter') begin('join
 const clock = new THREE.Clock(); let T = 0, mmT = 0; const QA = {auto:true, n:0, t:0}; let T_unused = 0, callT = 0, levelAn = null, wdT = 0; const lvBuf = new Uint8Array(512);
 function loop(){
   requestAnimationFrame(loop);
-  let dt = Math.min(clock.getDelta(), .05); if (paused || storyFreeze) dt = 0; dt = timeScale(dt); T += dt; fragTick(dt); duelTick(dt);
+  let dt = Math.min(clock.getDelta(), .05); if ((paused && !room) || storyFreeze) dt = 0; dt = timeScale(dt); T += dt; fragTick(dt); duelTick(dt);
   WIND.value = T; SPU.uT.value = T % 1000; updateAtmosphere(dt); bioTick(dt); comTick(dt); comTick(dt); SKY_U.uT.value = T; if (gradePass) { GRADE.uniforms.uT.value = T % 100; GRADE.uniforms.uHurt.value *= Math.pow(.1, dt); } rune.rotation.z += dt*.1; rune.material.opacity = .6 + Math.sin(T*2)*.25;
   crystal.rotation.y += dt*.8; socleTick(); crystal.position.y = 4.56 + Math.sin(T*1.5)*.25; altarLight.intensity = 1.1 + Math.sin(T*3)*.15 + Math.random()*.08;
   if (Math.random() < .7) { const b = BRAZ[Math.floor(Math.random()*BRAZ.length)]; puff(b.x + (Math.random() - .5)*.5, b.y, b.z + (Math.random() - .5)*.5, Math.random() < .5 ? '#ff9a3a' : '#ffcf5a', 1, .5, b.small ? .25 : .5, .9, 2.4); }
@@ -4887,7 +4888,7 @@ function loop(){
     wdT -= dt; if (wdT <= 0 && engine() === 'browser') { wdT = 1.5; if (SR && micWanted && !recOn) startMic(); else if (SR && micWanted && recOn && lastRes && now() - lastRes > 45) { lastRes = now(); try { rec.abort(); } catch (e) {} } }
     for (const [id, a] of audios) { const o = others.get(id); const d = o ? Math.hypot(o.g.position.x - me.x, o.g.position.z - me.z) : 0; a.volume = clamp(1 - d/70, .25, 1); }
     for (const o of others.values()) if (o.g.userData.upd) o.g.userData.upd(dt, o);
-    if (isHost && !paused && !storyFreeze) hostStep(dt); /* pause : la simulation des monstres est totalement arrêtée */
+    if (isHost && !(paused && !room) && !storyFreeze) hostStep(dt); /* pause : la simulation des monstres est totalement arrêtée */
     updHud(dt);
     mmT -= dt; if (mmT <= 0) { mmT = .1; drawMinimap(); }
     $('#lowhp').style.opacity = me.hp < 30 && !me.dead ? (.55 + Math.sin(T*6)*.25).toFixed(2) : 0;
