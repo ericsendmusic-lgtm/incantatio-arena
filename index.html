@@ -716,12 +716,16 @@ function axisLA(x, z, AX){ let bl = 1e9, ba = -1; for (const [c, s] of AX) { con
 function stairH(l, al){ if (l >= AR.sw + AR.cw) return null; for (const [R, H] of AR.lv) { const R0 = R - .3; if (al >= R0 && al < R0 + 4*AR.tread) return l < AR.sw ? H - 1.2 + .3*(Math.floor((al - R0)/AR.tread) + 1) : H + .5; } return null; }
 function rubH(l, al){ if (l >= AR.rw) return null; for (const [R, H] of AR.lv) { const R0 = R - .2; if (al >= R0 && al < R + AR.rrun) return H - 1.2 + (al - R0)/(AR.rrun + .2)*1.2; } return null; }
 function outerStairH(l, al){ if (l >= AR.ow || al < AR.edge) return null; const k = Math.floor((al - AR.edge)/AR.oTread); return Math.max(-1.95, AR.top - AR.oRise*(k + 1)); }
+/* ruines à deux niveaux sur la 2e terrasse : une plateforme de 90 cm et ses trois marches, entre chaque porte et chaque éboulis */
+const PLAT = [1, 3, 5, 7].map(k => k*Math.PI/8).concat([9, 11, 13, 15].map(k => k*Math.PI/8)).filter((a, i) => i % 2 === 0).map(a => ({a, c:Math.cos(a), s:Math.sin(a), r:36.6}));
+function platH(x, z){ for (const p of PLAT) { const u = x*p.c + z*p.s - p.r, v = Math.abs(z*p.c - x*p.s); if (u < -3.3 || u > 1.8 || v > 2.6) continue; if (u >= -1.8) return AR.lv[1][1] + .9; if (v < 1.2) return AR.lv[1][1] + .3*(1 + Math.floor((u + 3.3)/.5)); } return null; }
 function groundH(x, z){ const r = Math.hypot(x, z);
   if (r < 6.6) return r < 4.8 ? .68 : r < 5.7 ? .44 : .2;
   const g = axisLA(x, z, AXG);
   if (r >= AR.edge) { const o = outerStairH(g[0], g[1]); if (o !== null) return o; return r < 49 ? AR.top : terrainH(x, z); }
   const s = stairH(g[0], g[1]); if (s !== null) return s;
   const q = axisLA(x, z, AXR), u = rubH(q[0], q[1]); if (u !== null) return u;
+  if (r > 32.5 && r < 40.5) { const pp = platH(x, z); if (pp !== null) return pp; }
   let h = 0; for (const [R, H] of AR.lv) if (r >= R) h = H; return h; }
 /* hauteur « où l'on peut marcher » : la balustrade et l'extérieur sont des murs, sauf les escaliers des portes */
 function walkH(x, z){ const r = Math.hypot(x, z); if (r < AR.edge) return groundH(x, z); const g = axisLA(x, z, AXG), o = outerStairH(g[0], g[1]); return o === null ? 99 : o; }
@@ -892,6 +896,28 @@ const leafMat = new THREE.MeshStandardMaterial({map:LEAF_T, alphaTest:.45, side:
         for (const sd of [-1, 1]) { const lat = sd*(AR.ow + .25), x = c*al - s*lat, z = s*al + c*lat; sideParts.push([blockGeo(.5, h + .7, AR.oTread + .03), M4(x, bot + (h + .7)/2, z, 0, ry, 0)]); } } }
     add(mergeGeos(parts), stoneMat, true); add(mergeGeos(sideParts), darkStone, true); }
 }
+/* ---------------- DÉTAILS SCULPTÉS : ruines à étages, rochers, aiguilles de pierre ---------------- */
+{ const rockMat = new THREE.MeshStandardMaterial({map:ENVT.wall.map, normalMap:ENVT.wall.normal, normalScale:new THREE.Vector2(1.8, 1.8), color:0x77737f, roughness:.95}); addRim(rockMat, .25); addMossTop(rockMat, .4);
+  const rockGeo = k => geo('rockS' + k, () => { const g = new THREE.IcosahedronGeometry(1, 2), p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), n = vnoise(x*1.7 + k*13, z*1.7 + y*1.3, 77)*.55 + vnoise(x*4 + k, y*4 + z*3, 78)*.2, f = .7 + n; p.setXYZ(i, x*f*(1 + (k % 3)*.18), Math.max(-.3, y*f*.75), z*f); }
+    g.computeVertexNormals(); return g; });
+  /* ruines sur la 2e terrasse : plateforme, marches, mur effondré et colonnes brisées */
+  const H2 = AR.lv[1][1], partsB = [], partsW = [];
+  for (const p of PLAT) { const ry = -p.a, at = (u, v) => [p.c*(p.r + u) - p.s*v, p.s*(p.r + u) + p.c*v];
+    { const [x, z] = at(0, 0); partsB.push([blockGeo(3.6, 1.15, 5.2), M4(x, H2 - .25 + 1.15/2, z, 0, ry, 0)]); }
+    for (let k = 0; k < 3; k++) { const h = .3*(k + 1) + .2, [x, z] = at(-3.05 + k*.5, 0); partsB.push([blockGeo(.52, h, 2.4), M4(x, H2 - .2 + h/2, z, 0, ry, 0)]); }
+    { const g = new THREE.BoxGeometry(.6, 2.8, 5.2, 1, 4, 10), q = g.attributes.position; for (let i = 0; i < q.count; i++) if (q.getY(i) > 1.39) q.setY(i, q.getY(i) - Math.abs(Math.sin(q.getZ(i)*1.3 + p.a*5))*1.6 - Math.random()*.25); g.computeVertexNormals();
+      const [x, z] = at(1.45, 0); partsW.push([g, M4(x, H2 + .9 + 1.4, z, 0, ry, 0)]); for (const v of [-1.8, 0, 1.8]) { const [ox, oz] = at(1.45, v); OBS.push({x:ox, z:oz, r:.75}); } }
+    for (const v of [-2.15, 2.15]) { const [x, z] = at(-1.45, v), m = new THREE.Mesh(gothicColumnGeo(4.2, true, Math.abs(Math.round(p.a*10)) % 3), stoneMat); m.position.set(x, H2 + .9 - 1.1, z); m.rotation.y = ry; m.scale.setScalar(.62); m.castShadow = m.receiveShadow = true; scene.add(m); OBS.push({x, z, r:.65}); } }
+  { const o = new THREE.Mesh(mergeGeos(partsB), stoneMat); o.castShadow = o.receiveShadow = true; scene.add(o); const w = new THREE.Mesh(mergeGeos(partsW), rockMat); w.castShadow = w.receiveShadow = true; scene.add(w); }
+  /* rochers sculptés : couverts sur les terrasses et la galerie, entre les axes */
+  const R = [[], [], [], [], [], []], place = (x, z, sc, k, obs) => { R[k].push([x, groundH(x, z) - .15*sc, z, sc, Math.random()*6]); if (obs) OBS.push({x, z, r:sc*.72}); };
+  for (const [rad, sp] of [[23.6, 1], [39.6, 1.2], [43.3, .9]]) for (let k = 0; k < 8; k++) { const a0 = (k + .5)*Math.PI/4 + (Math.random() - .5)*.16;
+    for (let j = 0; j < 3; j++) { const a = a0 + (j - 1)*.035*sp*(rad < 30 ? 1.4 : 1), r = rad + (Math.random() - .5)*1.2, x = Math.cos(a)*r, z = Math.sin(a)*r; if (inStairZone(x, z) || platH(x, z) !== null) continue; const sc = (j === 1 ? 1.15 : .55 + Math.random()*.35)*sp; place(x, z, sc, (k + j) % 6, sc > .8); } }
+  /* aiguilles de pierre au-delà des murs : premier plan de profondeur */
+  const SP = [[], [], [], [], [], []]; for (let i = 0; i < 34; i++) { let a; do { a = Math.random()*Math.PI*2; } while (AXG.some(([c, s, ax]) => angDist(a, ax) < .16)); const d = 64 + Math.random()*40, x = Math.cos(a)*d, z = Math.sin(a)*d; SP[i % 6].push([x, terrainH(x, z) - 1, z, 0, a]); }
+  for (let k = 0; k < 6; k++) { if (R[k].length) { const im = new THREE.InstancedMesh(rockGeo(k), rockMat, R[k].length); R[k].forEach(([x, y, z, sc, ry], i) => { DUM2.position.set(x, y, z); DUM2.rotation.set(0, ry, 0); DUM2.scale.set(sc, sc*(.8 + (i % 3)*.2), sc); DUM2.updateMatrix(); im.setMatrixAt(i, DUM2.matrix); }); im.castShadow = im.receiveShadow = true; scene.add(im); }
+    if (SP[k].length) { const im = new THREE.InstancedMesh(rockGeo(k), rockMat, SP[k].length); SP[k].forEach(([x, y, z, , ry], i) => { const w = 2.2 + Math.random()*2.2, h = 7 + Math.random()*10; DUM2.position.set(x, y + h*.45, z); DUM2.rotation.set((Math.random() - .5)*.25, ry, (Math.random() - .5)*.25); DUM2.scale.set(w, h, w*.8); DUM2.updateMatrix(); im.setMatrixAt(i, DUM2.matrix); }); im.castShadow = true; im.receiveShadow = true; scene.add(im); } } }
 /* ---------------- NIVEAU 2 : marches qui descendent, ruines, portes ---------------- */
 { const prof = [[48.95, -.15], [50.4, -.15], [50.4, -.5], [51.8, -.5], [51.8, -.85], [53.2, -.85], [53.2, -1.2], [54.6, -1.2], [54.6, -1.55], [56.5, -1.55], [56.5, -1.95]].map(([a, b]) => new THREE.Vector2(a, b));
   let a0 = 0; while (a0 < Math.PI*2) { const len = Math.min(Math.PI*2 - a0, .25 + Math.random()*.35); if (Math.random() > .12) { const st = new THREE.Mesh(new THREE.LatheGeometry(prof, Math.max(6, Math.round(len*40)), a0, len), darkStone); st.receiveShadow = st.castShadow = true; scene.add(st); }
