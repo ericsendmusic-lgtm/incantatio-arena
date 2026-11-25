@@ -1610,7 +1610,7 @@ function progHit(h){ const t = h[0];
 const CHP = {};
 function stealTick(){ if (STEAL.id && now() > STEAL.until) { if (BW.word === STEAL.phrase) { cds[STEAL.id] = now() + 8; toast('La Liche a volé « ' + STEAL.phrase + ' » : sort bloqué 8 s'); BW.word = ''; } STEAL.id = ''; } }
 /* phylactère : objet immobile, à briser */
-MT.push({n:'Phylactère', hp:260, spd:0, dmg:0, r:.9, h:2.2, reach:0, cd:99, phyl:1});
+/* le phylactère (type ajouté après les têtes du Wyrm et Velkar, pour ne décaler aucun index) */
 function phylMesh(){ const g = new THREE.Group(), body = new THREE.Group(); g.add(body); const gl = new THREE.MeshStandardMaterial({color:0x3dff9a, emissive:0x1aff7a, emissiveIntensity:1.4, transparent:true, opacity:.75, roughness:.1});
   const jar = new THREE.Mesh(geo('phyJar', () => new THREE.LatheGeometry([[0, 0], [.5, .05], [.62, .5], [.55, 1.1], [.3, 1.45], [.34, 1.7], [0, 1.75]].map(([x, y]) => new THREE.Vector2(x, y)), 18)), gl); body.add(jar);
   const cage = new THREE.Mesh(geo('phyCage', () => new THREE.CylinderGeometry(.7, .7, 1.9, 8, 1, true)), new THREE.MeshStandardMaterial({color:0x2a2a30, metalness:.8, roughness:.4, wireframe:true})); cage.position.y = .9; body.add(cage);
@@ -3790,6 +3790,8 @@ function onFrag(n, page){ setFrag(n); flash(0, 5, 0, '#bfe2ff', 12, 1.2); puff(0
 MT.push({n:'Archimage Velkar', hp:2600, spd:3, dmg:20, r:1.4, h:5, reach:3, cd:1.6, boss:1},
         {n:'Reflet de Velkar', hp:160, spd:3.4, dmg:6, r:.7, h:2.8, reach:1.8, cd:1.2, ranged:{min:5, max:22, cd:2.2, dmg:8}});
 WEAK[15] = {spirit:1.5, shadow:.6};
+MT.push({n:'Phylactère', hp:260, spd:0, dmg:0, r:.9, h:2.2, reach:0, cd:99, phyl:1});
+MT.push({n:'Phylactère', hp:260, spd:0, dmg:0, r:.9, h:2.2, reach:0, cd:99, phyl:1});
 const ELS = ['fire', 'ice', 'storm', 'spirit', 'shadow'], ELCOL = {fire:'#ff7a2a', ice:'#7fdcff', storm:'#ffe14a', spirit:'#c08aff', shadow:'#5aff9c'};
 let DUEL = null, DUEL_UI = null;
 const ALL_PHRASES = () => Object.values(INCV).flat();
